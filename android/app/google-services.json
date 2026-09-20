@@ -1,0 +1,30 @@
+{
+  "project_info": {
+    "project_number": "563067731281",
+    "firebase_url": "https://inventory-management-6a18d-default-rtdb.firebaseio.com",
+    "project_id": "inventory-management-6a18d",
+    "storage_bucket": "inventory-management-6a18d.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:563067731281:android:a4e1df186e6e9078742770",
+        "android_client_info": {
+          "package_name": "com.example.inventory_management"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCyRzy3N6LCPyWH5ESWYOdaXjlOWWjIflE"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
