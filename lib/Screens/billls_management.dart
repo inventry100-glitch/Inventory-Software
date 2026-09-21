@@ -3612,9 +3612,2541 @@
 
 
 
+// import 'dart:typed_data';
+
+// import 'package:cloud_firestore/cloud_firestore.dart';
+// import 'package:flutter/material.dart';
+// import 'package:inventory_management/Screens/drawer.dart';
+// import 'package:pdf/pdf.dart';
+// import 'package:pdf/widgets.dart' as pw;
+// import 'package:printing/printing.dart';
+
+// class BillsManagementScreen extends StatefulWidget {
+//   const BillsManagementScreen({super.key});
+
+//   @override
+//   State<BillsManagementScreen> createState() =>
+//       _BillsManagementScreenState();
+// }
+
+// class _BillsManagementScreenState
+//     extends State<BillsManagementScreen> {
+//   // ============================================================
+//   // THEME
+//   // ============================================================
+
+//   static const Color background = Color(0xFFF7F2EA);
+//   static const Color surface = Color(0xFFFFFCF8);
+//   static const Color bronze = Color(0xFF9A6A3A);
+//   static const Color bronzeDark = Color(0xFF704823);
+//   static const Color bronzeLight = Color(0xFFE9D6BC);
+//   static const Color darkBrown = Color(0xFF2C2119);
+//   static const Color mediumBrown = Color(0xFF59483A);
+//   static const Color mutedText = Color(0xFF8A7B6E);
+//   static const Color border = Color(0xFFE6D9CB);
+
+//   final TextEditingController _searchController =
+//       TextEditingController();
+
+//   String _selectedFilter = 'All';
+
+//   @override
+//   void dispose() {
+//     _searchController.dispose();
+//     super.dispose();
+//   }
+
+//   // ============================================================
+//   // PAYMENT STATUS
+//   // ============================================================
+
+//   String _getPaymentStatus(Map<String, dynamic> bill) {
+//     final savedStatus =
+//         (bill['paymentStatus'] ?? '').toString().toLowerCase();
+
+//     if (savedStatus == 'paid' ||
+//         savedStatus == 'partial' ||
+//         savedStatus == 'unpaid') {
+//       return savedStatus;
+//     }
+
+//     final total = _toDouble(bill['totalAmount']);
+//     final paid = _toDouble(bill['paidAmount']);
+
+//     if (total <= 0 || paid >= total) {
+//       return 'paid';
+//     }
+
+//     if (paid > 0) {
+//       return 'partial';
+//     }
+
+//     return 'unpaid';
+//   }
+
+//   double _toDouble(dynamic value) {
+//     if (value is num) {
+//       return value.toDouble();
+//     }
+
+//     return double.tryParse(
+//           value?.toString() ?? '',
+//         ) ??
+//         0;
+//   }
+
+//   String _money(dynamic value) {
+//     return 'Rs. ${_toDouble(value).toStringAsFixed(0)}';
+//   }
+
+//   // ============================================================
+//   // EXACT SEARCH
+//   // ============================================================
+
+//   bool _matchesSearch(Map<String, dynamic> bill) {
+//     final query =
+//         _searchController.text.trim().toLowerCase();
+
+//     if (query.isEmpty) {
+//       return true;
+//     }
+
+//     final name =
+//         (bill['customerName'] ?? '')
+//             .toString()
+//             .trim()
+//             .toLowerCase();
+
+//     final billNumber =
+//         (bill['billNumber'] ?? '')
+//             .toString()
+//             .trim()
+//             .toLowerCase();
+
+//     final cnic =
+//         (bill['cnic'] ?? '')
+//             .toString()
+//             .trim()
+//             .toLowerCase();
+
+//     return query == name ||
+//         query == billNumber ||
+//         query == cnic;
+//   }
+
+//   // ============================================================
+//   // RENTED ITEMS
+//   // ============================================================
+
+//   String _getRentedItems(Map<String, dynamic> bill) {
+//     final items = bill['items'];
+
+//     if (items is! List || items.isEmpty) {
+//       return 'No items';
+//     }
+
+//     final result = <String>[];
+
+//     for (final item in items) {
+//       if (item is Map) {
+//         final name =
+//             (item['name'] ?? 'Item').toString();
+
+//         final quantity =
+//             item['quantity'] ?? 0;
+
+//         result.add('$name x$quantity');
+//       }
+//     }
+
+//     return result.isEmpty
+//         ? 'No items'
+//         : result.join(', ');
+//   }
+
+//   // ============================================================
+//   // STATUS COLOR
+//   // ============================================================
+
+//   Color _statusColor(String status) {
+//     switch (status) {
+//       case 'paid':
+//         return const Color(0xFF3F7D52);
+
+//       case 'partial':
+//         return const Color(0xFFB7791F);
+
+//       default:
+//         return const Color(0xFFB64A4A);
+//     }
+//   }
+
+//   Color _statusBackground(String status) {
+//     switch (status) {
+//       case 'paid':
+//         return const Color(0xFFE5F2E8);
+
+//       case 'partial':
+//         return const Color(0xFFFFF0D5);
+
+//       default:
+//         return const Color(0xFFFBE6E6);
+//     }
+//   }
+
+//   IconData _statusIcon(String status) {
+//     switch (status) {
+//       case 'paid':
+//         return Icons.check_circle_rounded;
+
+//       case 'partial':
+//         return Icons.timelapse_rounded;
+
+//       default:
+//         return Icons.pending_actions_rounded;
+//     }
+//   }
+
+//   // ============================================================
+//   // OPEN BILL PREVIEW
+//   // ============================================================
+
+//   Future<void> _openBillPreview(
+//     Map<String, dynamic> bill,
+//   ) async {
+//     try {
+//       final pdfBytes =
+//           await _buildBillPdf(bill);
+
+//       if (!mounted) return;
+
+//       Navigator.push(
+//         context,
+//         MaterialPageRoute(
+//           builder: (_) => BillPreviewScreen(
+//             pdfBytes: pdfBytes,
+//             billNumber:
+//                 (bill['billNumber'] ?? 'Bill')
+//                     .toString(),
+//           ),
+//         ),
+//       );
+//     } catch (e) {
+//       if (!mounted) return;
+
+//       ScaffoldMessenger.of(context).showSnackBar(
+//         SnackBar(
+//           backgroundColor: const Color(0xFFB64A4A),
+//           behavior: SnackBarBehavior.floating,
+//           content: Text(
+//             'Could not create bill preview: $e',
+//           ),
+//         ),
+//       );
+//     }
+//   }
+
+//   // ============================================================
+//   // BUILD PDF
+//   // ============================================================
+
+//   Future<Uint8List> _buildBillPdf(
+//     Map<String, dynamic> bill,
+//   ) async {
+//     final pdf = pw.Document();
+
+//     final status =
+//         _getPaymentStatus(bill);
+
+//     final billNumber =
+//         (bill['billNumber'] ?? 'N/A').toString();
+
+//     final customerName =
+//         (bill['customerName'] ?? 'N/A').toString();
+
+//     final contact =
+//         (bill['contactNumber'] ?? 'N/A').toString();
+
+//     final cnic =
+//         (bill['cnic'] ?? 'N/A').toString();
+
+//     final subtotal =
+//         _toDouble(bill['subtotal']);
+
+//     final discount =
+//         _toDouble(bill['discount']);
+
+//     final total =
+//         _toDouble(bill['totalAmount']);
+
+//     final paid =
+//         _toDouble(bill['paidAmount']);
+
+//     final remaining =
+//         _toDouble(bill['remainingAmount']);
+
+//     final items = <Map<String, dynamic>>[];
+
+//     if (bill['items'] is List) {
+//       for (final item in bill['items']) {
+//         if (item is Map) {
+//           items.add(
+//             Map<String, dynamic>.from(item),
+//           );
+//         }
+//       }
+//     }
+
+//     pdf.addPage(
+//       pw.MultiPage(
+//         pageFormat: PdfPageFormat.a4,
+//         margin:
+//             const pw.EdgeInsets.all(32),
+//         build: (context) {
+//           return [
+//             pw.Container(
+//               padding:
+//                   const pw.EdgeInsets.all(18),
+//               decoration:
+//                   pw.BoxDecoration(
+//                 border: pw.Border.all(
+//                   color:
+//                       PdfColors.blueGrey700,
+//                   width: 1.2,
+//                 ),
+//                 borderRadius:
+//                     pw.BorderRadius.circular(8),
+//               ),
+//               child: pw.Column(
+//                 crossAxisAlignment:
+//                     pw.CrossAxisAlignment.start,
+//                 children: [
+//                   pw.Row(
+//                     mainAxisAlignment:
+//                         pw.MainAxisAlignment.spaceBetween,
+//                     children: [
+//                       pw.Text(
+//                         'RENTAL BILL',
+//                         style: pw.TextStyle(
+//                           fontSize: 24,
+//                           fontWeight:
+//                               pw.FontWeight.bold,
+//                         ),
+//                       ),
+//                       pw.Container(
+//                         padding:
+//                             const pw.EdgeInsets.symmetric(
+//                           horizontal: 12,
+//                           vertical: 7,
+//                         ),
+//                         decoration:
+//                             pw.BoxDecoration(
+//                           color:
+//                               _pdfStatusColor(
+//                             status,
+//                           ),
+//                           borderRadius:
+//                               pw.BorderRadius.circular(
+//                             5,
+//                           ),
+//                         ),
+//                         child: pw.Text(
+//                           status.toUpperCase(),
+//                           style: pw.TextStyle(
+//                             color:
+//                                 PdfColors.white,
+//                             fontWeight:
+//                                 pw.FontWeight.bold,
+//                           ),
+//                         ),
+//                       ),
+//                     ],
+//                   ),
+
+//                   pw.SizedBox(height: 15),
+
+//                   pw.Divider(),
+
+//                   _pdfInfoRow(
+//                     'Bill Number',
+//                     billNumber,
+//                   ),
+
+//                   _pdfInfoRow(
+//                     'Generated Date',
+//                     _formatDate(
+//                       bill['createdAt'],
+//                     ),
+//                   ),
+
+//                   pw.SizedBox(height: 10),
+
+//                   pw.Text(
+//                     'CUSTOMER DETAILS',
+//                     style: pw.TextStyle(
+//                       fontSize: 12,
+//                       fontWeight:
+//                           pw.FontWeight.bold,
+//                     ),
+//                   ),
+
+//                   pw.SizedBox(height: 7),
+
+//                   _pdfInfoRow(
+//                     'Name',
+//                     customerName,
+//                   ),
+
+//                   _pdfInfoRow(
+//                     'Contact',
+//                     contact,
+//                   ),
+
+//                   _pdfInfoRow(
+//                     'CNIC',
+//                     cnic,
+//                   ),
+
+//                   pw.SizedBox(height: 10),
+
+//                   pw.Text(
+//                     'RENTAL PERIOD',
+//                     style: pw.TextStyle(
+//                       fontSize: 12,
+//                       fontWeight:
+//                           pw.FontWeight.bold,
+//                     ),
+//                   ),
+
+//                   pw.SizedBox(height: 7),
+
+//                   _pdfInfoRow(
+//                     'From',
+//                     _formatDate(
+//                       bill['dateFrom'],
+//                     ),
+//                   ),
+
+//                   _pdfInfoRow(
+//                     'Till',
+//                     _formatDate(
+//                       bill['dateTill'],
+//                     ),
+//                   ),
+
+//                   pw.SizedBox(height: 16),
+
+//                   pw.Text(
+//                     'RENTED ITEMS',
+//                     style: pw.TextStyle(
+//                       fontSize: 12,
+//                       fontWeight:
+//                           pw.FontWeight.bold,
+//                     ),
+//                   ),
+
+//                   pw.SizedBox(height: 8),
+
+//                   pw.Table(
+//                     border:
+//                         pw.TableBorder.all(
+//                       color:
+//                           PdfColors.grey400,
+//                     ),
+//                     columnWidths: {
+//                       0: const pw.FlexColumnWidth(
+//                         3,
+//                       ),
+//                       1: const pw.FlexColumnWidth(
+//                         1,
+//                       ),
+//                       2: const pw.FlexColumnWidth(
+//                         1.5,
+//                       ),
+//                       3: const pw.FlexColumnWidth(
+//                         1.7,
+//                       ),
+//                     },
+//                     children: [
+//                       pw.TableRow(
+//                         decoration:
+//                             const pw.BoxDecoration(
+//                           color:
+//                               PdfColors.grey200,
+//                         ),
+//                         children: [
+//                           _pdfTableCell(
+//                             'Item',
+//                             bold: true,
+//                           ),
+//                           _pdfTableCell(
+//                             'Qty',
+//                             bold: true,
+//                           ),
+//                           _pdfTableCell(
+//                             'Rate',
+//                             bold: true,
+//                           ),
+//                           _pdfTableCell(
+//                             'Amount',
+//                             bold: true,
+//                           ),
+//                         ],
+//                       ),
+//                       ...items.map(
+//                         (item) {
+//                           final quantity =
+//                               _toDouble(
+//                             item['quantity'],
+//                           );
+
+//                           final rate =
+//                               _toDouble(
+//                             item['rentPrice'] ??
+//                                 item['price'],
+//                           );
+
+//                           final amount =
+//                               _toDouble(
+//                             item['total'] ??
+//                                 item['amount'],
+//                           );
+
+//                           return pw.TableRow(
+//                             children: [
+//                               _pdfTableCell(
+//                                 (item['name'] ??
+//                                         'Item')
+//                                     .toString(),
+//                               ),
+//                               _pdfTableCell(
+//                                 quantity
+//                                     .toStringAsFixed(
+//                                   0,
+//                                 ),
+//                               ),
+//                               _pdfTableCell(
+//                                 'Rs. ${rate.toStringAsFixed(0)}',
+//                               ),
+//                               _pdfTableCell(
+//                                 'Rs. ${amount.toStringAsFixed(0)}',
+//                               ),
+//                             ],
+//                           );
+//                         },
+//                       ),
+//                     ],
+//                   ),
+
+//                   pw.SizedBox(height: 18),
+
+//                   pw.Align(
+//                     alignment:
+//                         pw.Alignment.centerRight,
+//                     child: pw.SizedBox(
+//                       width: 250,
+//                       child: pw.Column(
+//                         children: [
+//                           _pdfAmountRow(
+//                             'Actual Amount',
+//                             subtotal,
+//                           ),
+//                           _pdfAmountRow(
+//                             'Discount',
+//                             discount,
+//                           ),
+//                           pw.Divider(),
+//                           _pdfAmountRow(
+//                             'Total Amount',
+//                             total,
+//                             bold: true,
+//                           ),
+//                           _pdfAmountRow(
+//                             'Paid',
+//                             paid,
+//                           ),
+//                           _pdfAmountRow(
+//                             'Remaining',
+//                             remaining,
+//                             bold: true,
+//                           ),
+//                         ],
+//                       ),
+//                     ),
+//                   ),
+
+//                   pw.SizedBox(height: 18),
+
+//                   pw.Divider(),
+
+//                   pw.SizedBox(height: 8),
+
+//                   if (status == 'paid')
+//                     pw.Center(
+//                       child: pw.Container(
+//                         padding:
+//                             const pw.EdgeInsets.symmetric(
+//                           horizontal: 25,
+//                           vertical: 10,
+//                         ),
+//                         decoration:
+//                             pw.BoxDecoration(
+//                           border: pw.Border.all(
+//                             color:
+//                                 PdfColors.green,
+//                             width: 3,
+//                           ),
+//                         ),
+//                         child: pw.Text(
+//                           'PAID',
+//                           style: pw.TextStyle(
+//                             color:
+//                                 PdfColors.green,
+//                             fontSize: 24,
+//                             fontWeight:
+//                                 pw.FontWeight.bold,
+//                           ),
+//                         ),
+//                       ),
+//                     )
+//                   else
+//                     pw.Text(
+//                       status == 'partial'
+//                           ? 'Payment Note: Remaining balance of Rs. ${remaining.toStringAsFixed(0)} is due on or before the return date.'
+//                           : 'Payment Note: Bill payment is due on or before the return date.',
+//                       style:
+//                           const pw.TextStyle(
+//                         fontSize: 10,
+//                       ),
+//                     ),
+//                 ],
+//               ),
+//             ),
+//           ];
+//         },
+//       ),
+//     );
+
+//     return pdf.save();
+//   }
+
+//   pw.Widget _pdfInfoRow(
+//     String label,
+//     String value,
+//   ) {
+//     return pw.Padding(
+//       padding:
+//           const pw.EdgeInsets.only(
+//         bottom: 4,
+//       ),
+//       child: pw.Row(
+//         children: [
+//           pw.SizedBox(
+//             width: 105,
+//             child: pw.Text(
+//               label,
+//               style: pw.TextStyle(
+//                 fontWeight:
+//                     pw.FontWeight.bold,
+//               ),
+//             ),
+//           ),
+//           pw.Expanded(
+//             child: pw.Text(value),
+//           ),
+//         ],
+//       ),
+//     );
+//   }
+
+//   pw.Widget _pdfTableCell(
+//     String text, {
+//     bool bold = false,
+//   }) {
+//     return pw.Padding(
+//       padding:
+//           const pw.EdgeInsets.all(7),
+//       child: pw.Text(
+//         text,
+//         style: pw.TextStyle(
+//           fontSize: 9,
+//           fontWeight: bold
+//               ? pw.FontWeight.bold
+//               : pw.FontWeight.normal,
+//         ),
+//       ),
+//     );
+//   }
+
+//   pw.Widget _pdfAmountRow(
+//     String label,
+//     double value, {
+//     bool bold = false,
+//   }) {
+//     return pw.Padding(
+//       padding:
+//           const pw.EdgeInsets.symmetric(
+//         vertical: 3,
+//       ),
+//       child: pw.Row(
+//         mainAxisAlignment:
+//             pw.MainAxisAlignment.spaceBetween,
+//         children: [
+//           pw.Text(
+//             label,
+//             style: pw.TextStyle(
+//               fontWeight: bold
+//                   ? pw.FontWeight.bold
+//                   : pw.FontWeight.normal,
+//             ),
+//           ),
+//           pw.Text(
+//             'Rs. ${value.toStringAsFixed(0)}',
+//             style: pw.TextStyle(
+//               fontWeight: bold
+//                   ? pw.FontWeight.bold
+//                   : pw.FontWeight.normal,
+//             ),
+//           ),
+//         ],
+//       ),
+//     );
+//   }
+
+//   PdfColor _pdfStatusColor(
+//     String status,
+//   ) {
+//     switch (status) {
+//       case 'paid':
+//         return PdfColors.green;
+
+//       case 'partial':
+//         return PdfColors.orange;
+
+//       default:
+//         return PdfColors.red;
+//     }
+//   }
+
+//   String _formatDate(dynamic value) {
+//     DateTime? date;
+
+//     if (value is Timestamp) {
+//       date = value.toDate();
+//     } else if (value is DateTime) {
+//       date = value;
+//     } else if (value is String) {
+//       date = DateTime.tryParse(value);
+//     }
+
+//     if (date == null) {
+//       return 'N/A';
+//     }
+
+//     return '${date.day.toString().padLeft(2, '0')}/'
+//         '${date.month.toString().padLeft(2, '0')}/'
+//         '${date.year}';
+//   }
+
+//   // ============================================================
+//   // MAIN UI
+//   // ============================================================
+
+//   @override
+//   Widget build(BuildContext context) {
+//     return Scaffold(
+//       backgroundColor: background,
+
+//       appBar: AppBar(
+//         backgroundColor: surface,
+//         foregroundColor: darkBrown,
+//         elevation: 0,
+//         surfaceTintColor: Colors.transparent,
+//         titleSpacing: 20,
+//         title: const Row(
+//           children: [
+//             Icon(
+//               Icons.receipt_long_rounded,
+//               color: bronze,
+//               size: 24,
+//             ),
+//             SizedBox(width: 10),
+//             Text(
+//               'Bill Management',
+//               style: TextStyle(
+//                 color: darkBrown,
+//                 fontWeight: FontWeight.w700,
+//                 fontSize: 19,
+//               ),
+//             ),
+//           ],
+//         ),
+//       ),
+
+//       drawer: const AdminDrawer(
+//         selectedIndex: 4,
+//       ),
+
+//       body: StreamBuilder<
+//           QuerySnapshot<
+//               Map<String, dynamic>>>(
+//         stream: FirebaseFirestore
+//             .instance
+//             .collection('bills')
+//             .orderBy(
+//               'createdAt',
+//               descending: true,
+//             )
+//             .snapshots(),
+//         builder:
+//             (context, snapshot) {
+//           if (snapshot.hasError) {
+//             return _errorState(
+//               snapshot.error.toString(),
+//             );
+//           }
+
+//           if (snapshot.connectionState ==
+//               ConnectionState.waiting) {
+//             return const Center(
+//               child: CircularProgressIndicator(
+//                 color: bronze,
+//               ),
+//             );
+//           }
+
+//           final documents =
+//               snapshot.data?.docs ?? [];
+
+//           final filteredBills =
+//               documents.where((doc) {
+//             final bill =
+//                 doc.data();
+
+//             final status =
+//                 _getPaymentStatus(
+//               bill,
+//             );
+
+//             final filterMatches =
+//                 _selectedFilter ==
+//                         'All' ||
+//                     status ==
+//                         _selectedFilter
+//                             .toLowerCase();
+
+//             return filterMatches &&
+//                 _matchesSearch(
+//                   bill,
+//                 );
+//           }).toList();
+
+//           return LayoutBuilder(
+//             builder:
+//                 (context, constraints) {
+//               final width =
+//                   constraints.maxWidth;
+
+//               final isMobile =
+//                   width < 600;
+
+//               final isTablet =
+//                   width >= 600 &&
+//                       width < 1000;
+
+//               final horizontalPadding =
+//                   isMobile
+//                       ? 14.0
+//                       : isTablet
+//                           ? 22.0
+//                           : 30.0;
+
+//               return Column(
+//                 children: [
+//                   _buildPageHeader(
+//                     documents.length,
+//                     isMobile,
+//                     isTablet,
+//                   ),
+
+//                   _buildSummary(
+//                     documents,
+//                     width,
+//                   ),
+
+//                   _buildSearchAndFilter(
+//                     width,
+//                     horizontalPadding,
+//                   ),
+
+//                   Expanded(
+//                     child: filteredBills
+//                             .isEmpty
+//                         ? _emptyState()
+//                         : ListView.builder(
+//                             padding:
+//                                 EdgeInsets.fromLTRB(
+//                               horizontalPadding,
+//                               4,
+//                               horizontalPadding,
+//                               30,
+//                             ),
+//                             itemCount:
+//                                 filteredBills
+//                                     .length,
+//                             itemBuilder:
+//                                 (context,
+//                                     index) {
+//                               return _buildBillCard(
+//                                 filteredBills[
+//                                         index]
+//                                     .data(),
+//                                 width,
+//                               );
+//                             },
+//                           ),
+//                   ),
+//                 ],
+//               );
+//             },
+//           );
+//         },
+//       ),
+//     );
+//   }
+
+//   // ============================================================
+//   // PAGE HEADER
+//   // ============================================================
+
+//   Widget _buildPageHeader(
+//     int totalBills,
+//     bool isMobile,
+//     bool isTablet,
+//   ) {
+//     return Padding(
+//       padding: EdgeInsets.fromLTRB(
+//         isMobile ? 14 : 28,
+//         isMobile ? 14 : 22,
+//         isMobile ? 14 : 28,
+//         4,
+//       ),
+//       child: Container(
+//         width: double.infinity,
+//         padding: EdgeInsets.all(
+//           isMobile ? 18 : 22,
+//         ),
+//         decoration: BoxDecoration(
+//           gradient: const LinearGradient(
+//             colors: [
+//               bronzeDark,
+//               bronze,
+//             ],
+//             begin: Alignment.topLeft,
+//             end: Alignment.bottomRight,
+//           ),
+//           borderRadius:
+//               BorderRadius.circular(20),
+//           boxShadow: [
+//             BoxShadow(
+//               color: bronze.withOpacity(.20),
+//               blurRadius: 18,
+//               offset:
+//                   const Offset(0, 8),
+//             ),
+//           ],
+//         ),
+//         child: isMobile
+//             ? Column(
+//                 crossAxisAlignment:
+//                     CrossAxisAlignment.start,
+//                 children: [
+//                   _headerIcon(),
+//                   const SizedBox(height: 14),
+//                   _headerText(totalBills),
+//                 ],
+//               )
+//             : Row(
+//                 children: [
+//                   _headerIcon(),
+//                   const SizedBox(width: 16),
+//                   Expanded(
+//                     child:
+//                         _headerText(
+//                       totalBills,
+//                     ),
+//                   ),
+//                   if (!isTablet)
+//                     _headerDecoration(),
+//                 ],
+//               ),
+//       ),
+//     );
+//   }
+
+//   Widget _headerIcon() {
+//     return Container(
+//       width: 50,
+//       height: 50,
+//       decoration: BoxDecoration(
+//         color: Colors.white
+//             .withOpacity(.14),
+//         borderRadius:
+//             BorderRadius.circular(15),
+//         border: Border.all(
+//           color: Colors.white
+//               .withOpacity(.20),
+//         ),
+//       ),
+//       child: const Icon(
+//         Icons.receipt_long_rounded,
+//         color: Colors.white,
+//         size: 26,
+//       ),
+//     );
+//   }
+
+//   Widget _headerText(int totalBills) {
+//     return Column(
+//       crossAxisAlignment:
+//           CrossAxisAlignment.start,
+//       children: [
+//         const Text(
+//           'Bills & Payments',
+//           style: TextStyle(
+//             color: Colors.white,
+//             fontSize: 22,
+//             fontWeight: FontWeight.w800,
+//           ),
+//         ),
+//         const SizedBox(height: 5),
+//         Text(
+//           '$totalBills bill${totalBills == 1 ? '' : 's'} recorded in your rental system',
+//           style: TextStyle(
+//             color: Colors.white
+//                 .withOpacity(.82),
+//             fontSize: 13,
+//           ),
+//         ),
+//       ],
+//     );
+//   }
+
+//   Widget _headerDecoration() {
+//     return Container(
+//       width: 110,
+//       height: 70,
+//       decoration: BoxDecoration(
+//         color: Colors.white
+//             .withOpacity(.07),
+//         borderRadius:
+//             BorderRadius.circular(20),
+//       ),
+//       child: const Center(
+//         child: Icon(
+//           Icons.payments_outlined,
+//           color: Colors.white,
+//           size: 38,
+//         ),
+//       ),
+//     );
+//   }
+
+//   // ============================================================
+//   // SUMMARY
+//   // ============================================================
+
+//   Widget _buildSummary(
+//     List<QueryDocumentSnapshot<
+//             Map<String, dynamic>>>
+//         documents,
+//     double width,
+//   ) {
+//     final all =
+//         documents.length;
+
+//     final paid = documents
+//         .where(
+//           (doc) =>
+//               _getPaymentStatus(
+//                 doc.data(),
+//               ) ==
+//               'paid',
+//         )
+//         .length;
+
+//     final unpaid = documents
+//         .where(
+//           (doc) =>
+//               _getPaymentStatus(
+//                 doc.data(),
+//               ) ==
+//               'unpaid',
+//         )
+//         .length;
+
+//     final partial = documents
+//         .where(
+//           (doc) =>
+//               _getPaymentStatus(
+//                 doc.data(),
+//               ) ==
+//               'partial',
+//         )
+//         .length;
+
+//     final cards = [
+//       _summaryCard(
+//         'All Bills',
+//         all,
+//         Icons.receipt_long_rounded,
+//         bronze,
+//       ),
+//       _summaryCard(
+//         'Paid',
+//         paid,
+//         Icons.check_circle_rounded,
+//         const Color(0xFF3F7D52),
+//       ),
+//       _summaryCard(
+//         'Unpaid',
+//         unpaid,
+//         Icons.pending_actions_rounded,
+//         const Color(0xFFB64A4A),
+//       ),
+//       _summaryCard(
+//         'Partial',
+//         partial,
+//         Icons.timelapse_rounded,
+//         const Color(0xFFB7791F),
+//       ),
+//     ];
+
+//     if (width < 600) {
+//       return SizedBox(
+//         height: 105,
+//         child: ListView.separated(
+//           scrollDirection:
+//               Axis.horizontal,
+//           padding:
+//               const EdgeInsets.fromLTRB(
+//             14,
+//             10,
+//             14,
+//             8,
+//           ),
+//           itemCount:
+//               cards.length,
+//           separatorBuilder:
+//               (_, __) =>
+//                   const SizedBox(
+//             width: 10,
+//           ),
+//           itemBuilder:
+//               (_, index) {
+//             return SizedBox(
+//               width: 155,
+//               child: cards[index],
+//             );
+//           },
+//         ),
+//       );
+//     }
+
+//     return Padding(
+//       padding: EdgeInsets.fromLTRB(
+//         width < 1000 ? 22 : 30,
+//         14,
+//         width < 1000 ? 22 : 30,
+//         10,
+//       ),
+//       child: Wrap(
+//         spacing: 12,
+//         runSpacing: 12,
+//         children: cards
+//             .map(
+//               (card) => SizedBox(
+//                 width: width < 1000
+//                     ? (width - 56) / 2
+//                     : (width - 102) / 4,
+//                 child: card,
+//               ),
+//             )
+//             .toList(),
+//       ),
+//     );
+//   }
+
+//   Widget _summaryCard(
+//     String title,
+//     int value,
+//     IconData icon,
+//     Color accent,
+//   ) {
+//     return Container(
+//       height: 82,
+//       padding:
+//           const EdgeInsets.all(14),
+//       decoration: BoxDecoration(
+//         color: surface,
+//         borderRadius:
+//             BorderRadius.circular(17),
+//         border: Border.all(
+//           color: border,
+//         ),
+//         boxShadow: [
+//           BoxShadow(
+//             color: darkBrown
+//                 .withOpacity(.045),
+//             blurRadius: 12,
+//             offset:
+//                 const Offset(0, 4),
+//           ),
+//         ],
+//       ),
+//       child: Row(
+//         children: [
+//           Container(
+//             width: 44,
+//             height: 44,
+//             decoration: BoxDecoration(
+//               color:
+//                   accent.withOpacity(.10),
+//               borderRadius:
+//                   BorderRadius.circular(13),
+//             ),
+//             child: Icon(
+//               icon,
+//               color: accent,
+//               size: 22,
+//             ),
+//           ),
+//           const SizedBox(width: 11),
+//           Expanded(
+//             child: Column(
+//               mainAxisAlignment:
+//                   MainAxisAlignment.center,
+//               crossAxisAlignment:
+//                   CrossAxisAlignment.start,
+//               children: [
+//                 Text(
+//                   title,
+//                   maxLines: 1,
+//                   overflow:
+//                       TextOverflow.ellipsis,
+//                   style: const TextStyle(
+//                     color: mutedText,
+//                     fontSize: 11,
+//                     fontWeight:
+//                         FontWeight.w600,
+//                   ),
+//                 ),
+//                 const SizedBox(height: 3),
+//                 Text(
+//                   '$value',
+//                   style: const TextStyle(
+//                     color: darkBrown,
+//                     fontSize: 21,
+//                     fontWeight:
+//                         FontWeight.w800,
+//                   ),
+//                 ),
+//               ],
+//             ),
+//           ),
+//         ],
+//       ),
+//     );
+//   }
+
+//   // ============================================================
+//   // SEARCH + FILTER
+//   // ============================================================
+
+//   Widget _buildSearchAndFilter(
+//     double width,
+//     double horizontalPadding,
+//   ) {
+//     final isMobile =
+//         width < 600;
+
+//     final searchField =
+//         TextField(
+//       controller:
+//           _searchController,
+//       onChanged: (_) {
+//         setState(() {});
+//       },
+//       style: const TextStyle(
+//         color: darkBrown,
+//         fontSize: 14,
+//       ),
+//       decoration:
+//           InputDecoration(
+//         hintText:
+//             'Search exact name, bill number or CNIC',
+//         hintStyle: const TextStyle(
+//           color: mutedText,
+//           fontSize: 13,
+//         ),
+//         prefixIcon:
+//             const Icon(
+//           Icons.search_rounded,
+//           color: bronze,
+//         ),
+//         suffixIcon:
+//             _searchController
+//                     .text
+//                     .isEmpty
+//                 ? null
+//                 : IconButton(
+//                     icon:
+//                         const Icon(
+//                       Icons
+//                           .clear_rounded,
+//                       color: mutedText,
+//                     ),
+//                     onPressed: () {
+//                       _searchController
+//                           .clear();
+//                       setState(() {});
+//                     },
+//                   ),
+//         filled: true,
+//         fillColor: surface,
+//         contentPadding:
+//             const EdgeInsets
+//                 .symmetric(
+//           horizontal: 16,
+//           vertical: 14,
+//         ),
+//         border:
+//             OutlineInputBorder(
+//           borderRadius:
+//               BorderRadius.circular(
+//             14,
+//           ),
+//           borderSide:
+//               const BorderSide(
+//             color: border,
+//           ),
+//         ),
+//         enabledBorder:
+//             OutlineInputBorder(
+//           borderRadius:
+//               BorderRadius.circular(
+//             14,
+//           ),
+//           borderSide:
+//               const BorderSide(
+//             color: border,
+//           ),
+//         ),
+//         focusedBorder:
+//             OutlineInputBorder(
+//           borderRadius:
+//               BorderRadius.circular(
+//             14,
+//           ),
+//           borderSide:
+//               const BorderSide(
+//             color: bronze,
+//             width: 1.5,
+//           ),
+//         ),
+//       ),
+//     );
+
+//     final filterButton =
+//         PopupMenuButton<String>(
+//       onSelected: (value) {
+//         setState(() {
+//           _selectedFilter =
+//               value;
+//         });
+//       },
+//       color: surface,
+//       elevation: 8,
+//       shape:
+//           RoundedRectangleBorder(
+//         borderRadius:
+//             BorderRadius.circular(14),
+//       ),
+//       itemBuilder: (_) => [
+//         _filterMenuItem('All'),
+//         _filterMenuItem('Paid'),
+//         _filterMenuItem('Unpaid'),
+//         _filterMenuItem('Partial'),
+//       ],
+//       child: Container(
+//         height: 52,
+//         padding:
+//             const EdgeInsets.symmetric(
+//           horizontal: 15,
+//         ),
+//         decoration:
+//             BoxDecoration(
+//           color: surface,
+//           borderRadius:
+//               BorderRadius.circular(14),
+//           border: Border.all(
+//             color: border,
+//           ),
+//         ),
+//         child: Row(
+//           mainAxisSize:
+//               MainAxisSize.min,
+//           children: [
+//             const Icon(
+//               Icons.filter_list_rounded,
+//               color: bronze,
+//               size: 19,
+//             ),
+//             const SizedBox(width: 8),
+//             Text(
+//               _selectedFilter,
+//               style:
+//                   const TextStyle(
+//                 color: darkBrown,
+//                 fontWeight:
+//                     FontWeight.w600,
+//                 fontSize: 13,
+//               ),
+//             ),
+//             const SizedBox(width: 5),
+//             const Icon(
+//               Icons
+//                   .keyboard_arrow_down_rounded,
+//               color: mutedText,
+//             ),
+//           ],
+//         ),
+//       ),
+//     );
+
+//     return Padding(
+//       padding: EdgeInsets.fromLTRB(
+//         horizontalPadding,
+//         3,
+//         horizontalPadding,
+//         8,
+//       ),
+//       child: isMobile
+//           ? Column(
+//               children: [
+//                 searchField,
+//                 const SizedBox(height: 9),
+//                 Align(
+//                   alignment:
+//                       Alignment.centerLeft,
+//                   child:
+//                       filterButton,
+//                 ),
+//               ],
+//             )
+//           : Row(
+//               children: [
+//                 Expanded(
+//                   child: searchField,
+//                 ),
+//                 const SizedBox(width: 12),
+//                 filterButton,
+//               ],
+//             ),
+//     );
+//   }
+
+//   PopupMenuItem<String>
+//       _filterMenuItem(String value) {
+//     return PopupMenuItem<String>(
+//       value: value,
+//       child: Row(
+//         children: [
+//           Icon(
+//             value == 'All'
+//                 ? Icons
+//                     .format_list_bulleted_rounded
+//                 : value == 'Paid'
+//                     ? Icons
+//                         .check_circle_outline_rounded
+//                     : value == 'Partial'
+//                         ? Icons
+//                             .timelapse_rounded
+//                         : Icons
+//                             .pending_actions_rounded,
+//             color: value == 'All'
+//                 ? bronze
+//                 : _statusColor(
+//                     value.toLowerCase(),
+//                   ),
+//             size: 19,
+//           ),
+//           const SizedBox(width: 9),
+//           Text(
+//             value,
+//             style:
+//                 const TextStyle(
+//               color: darkBrown,
+//               fontWeight:
+//                   FontWeight.w500,
+//             ),
+//           ),
+//         ],
+//       ),
+//     );
+//   }
+
+//   // ============================================================
+//   // BILL CARD
+//   // ============================================================
+
+//   Widget _buildBillCard(
+//     Map<String, dynamic> bill,
+//     double width,
+//   ) {
+//     final isMobile =
+//         width < 600;
+
+//     final isTablet =
+//         width >= 600 &&
+//             width < 1000;
+
+//     final status =
+//         _getPaymentStatus(bill);
+
+//     final statusColor =
+//         _statusColor(status);
+
+//     final statusBackground =
+//         _statusBackground(status);
+
+//     final name =
+//         (bill['customerName'] ??
+//                 'Unknown Customer')
+//             .toString();
+
+//     final contact =
+//         (bill['contactNumber'] ??
+//                 'N/A')
+//             .toString();
+
+//     final billNumber =
+//         (bill['billNumber'] ??
+//                 'N/A')
+//             .toString();
+
+//     final rented =
+//         _getRentedItems(bill);
+
+//     final total =
+//         _money(
+//       bill['totalAmount'],
+//     );
+
+//     final dateFrom =
+//         _formatDate(
+//       bill['dateFrom'],
+//     );
+
+//     final dateTill =
+//         _formatDate(
+//       bill['dateTill'],
+//     );
+
+//     return Container(
+//       margin:
+//           const EdgeInsets.only(
+//         bottom: 12,
+//       ),
+//       padding:
+//           EdgeInsets.all(
+//         isMobile ? 15 : 18,
+//       ),
+//       decoration:
+//           BoxDecoration(
+//         color: surface,
+//         borderRadius:
+//             BorderRadius.circular(18),
+//         border: Border.all(
+//           color: border,
+//         ),
+//         boxShadow: [
+//           BoxShadow(
+//             color: darkBrown
+//                 .withOpacity(.045),
+//             blurRadius: 13,
+//             offset:
+//                 const Offset(0, 5),
+//           ),
+//         ],
+//       ),
+//       child: isMobile
+//           ? _buildMobileBillCard(
+//               bill,
+//               name,
+//               contact,
+//               billNumber,
+//               rented,
+//               total,
+//               dateFrom,
+//               dateTill,
+//               status,
+//               statusColor,
+//               statusBackground,
+//             )
+//           : _buildWideBillCard(
+//               bill,
+//               name,
+//               contact,
+//               billNumber,
+//               rented,
+//               total,
+//               dateFrom,
+//               dateTill,
+//               status,
+//               statusColor,
+//               statusBackground,
+//               isTablet,
+//             ),
+//     );
+//   }
+
+//   // ============================================================
+//   // WIDE BILL CARD
+//   // ============================================================
+
+//   Widget _buildWideBillCard(
+//     Map<String, dynamic> bill,
+//     String name,
+//     String contact,
+//     String billNumber,
+//     String rented,
+//     String total,
+//     String dateFrom,
+//     String dateTill,
+//     String status,
+//     Color statusColor,
+//     Color statusBackground,
+//     bool isTablet,
+//   ) {
+//     if (isTablet) {
+//       return Column(
+//         children: [
+//           Row(
+//             children: [
+//               Expanded(
+//                 child: _customerBlock(
+//                   name,
+//                   contact,
+//                 ),
+//               ),
+//               const SizedBox(width: 15),
+//               _statusChip(
+//                 status,
+//                 statusColor,
+//                 statusBackground,
+//               ),
+//             ],
+//           ),
+//           const SizedBox(height: 15),
+//           Container(
+//             padding:
+//                 const EdgeInsets.all(13),
+//             decoration: BoxDecoration(
+//               color: background,
+//               borderRadius:
+//                   BorderRadius.circular(13),
+//             ),
+//             child: Column(
+//               children: [
+//                 _responsiveInfoRow(
+//                   'Bill Number',
+//                   billNumber,
+//                 ),
+//                 _responsiveInfoRow(
+//                   'Rented Items',
+//                   rented,
+//                 ),
+//                 _responsiveInfoRow(
+//                   'Rental Period',
+//                   '$dateFrom → $dateTill',
+//                 ),
+//                 _responsiveInfoRow(
+//                   'Total Bill',
+//                   total,
+//                   bold: true,
+//                 ),
+//               ],
+//             ),
+//           ),
+//           const SizedBox(height: 12),
+//           SizedBox(
+//             width: double.infinity,
+//             child: _previewButton(bill),
+//           ),
+//         ],
+//       );
+//     }
+
+//     return Row(
+//       crossAxisAlignment:
+//           CrossAxisAlignment.center,
+//       children: [
+//         Expanded(
+//           flex: 2,
+//           child: _customerBlock(
+//             name,
+//             contact,
+//           ),
+//         ),
+
+//         Expanded(
+//           flex: 2,
+//           child: _billInfoColumn(
+//             'Bill Number',
+//             billNumber,
+//           ),
+//         ),
+
+//         Expanded(
+//           flex: 3,
+//           child: _billInfoColumn(
+//             'Rented Items',
+//             rented,
+//             maxLines: 2,
+//           ),
+//         ),
+
+//         Expanded(
+//           flex: 2,
+//           child: _billInfoColumn(
+//             'Rental Period',
+//             '$dateFrom\n$dateTill',
+//           ),
+//         ),
+
+//         SizedBox(
+//           width: 95,
+//           child: _statusChip(
+//             status,
+//             statusColor,
+//             statusBackground,
+//           ),
+//         ),
+
+//         const SizedBox(width: 15),
+
+//         SizedBox(
+//           width: 105,
+//           child: Column(
+//             crossAxisAlignment:
+//                 CrossAxisAlignment.end,
+//             children: [
+//               const Text(
+//                 'TOTAL',
+//                 style: TextStyle(
+//                   color: mutedText,
+//                   fontSize: 10,
+//                   fontWeight:
+//                       FontWeight.w700,
+//                 ),
+//               ),
+//               const SizedBox(height: 4),
+//               Text(
+//                 total,
+//                 maxLines: 1,
+//                 overflow:
+//                     TextOverflow.ellipsis,
+//                 style:
+//                     const TextStyle(
+//                   color: bronzeDark,
+//                   fontSize: 15,
+//                   fontWeight:
+//                       FontWeight.w800,
+//                 ),
+//               ),
+//             ],
+//           ),
+//         ),
+
+//         const SizedBox(width: 15),
+
+//         _previewButton(bill),
+//       ],
+//     );
+//   }
+
+//   // ============================================================
+//   // MOBILE BILL CARD
+//   // ============================================================
+
+//   Widget _buildMobileBillCard(
+//     Map<String, dynamic> bill,
+//     String name,
+//     String contact,
+//     String billNumber,
+//     String rented,
+//     String total,
+//     String dateFrom,
+//     String dateTill,
+//     String status,
+//     Color statusColor,
+//     Color statusBackground,
+//   ) {
+//     return Column(
+//       crossAxisAlignment:
+//           CrossAxisAlignment.start,
+//       children: [
+//         Row(
+//           crossAxisAlignment:
+//               CrossAxisAlignment.start,
+//           children: [
+//             Container(
+//               width: 44,
+//               height: 44,
+//               decoration:
+//                   BoxDecoration(
+//                 color:
+//                     bronzeLight.withOpacity(.55),
+//                 borderRadius:
+//                     BorderRadius.circular(13),
+//               ),
+//               child: const Icon(
+//                 Icons.receipt_long_rounded,
+//                 color: bronzeDark,
+//                 size: 22,
+//               ),
+//             ),
+//             const SizedBox(width: 11),
+//             Expanded(
+//               child: Column(
+//                 crossAxisAlignment:
+//                     CrossAxisAlignment.start,
+//                 children: [
+//                   Text(
+//                     name,
+//                     maxLines: 2,
+//                     overflow:
+//                         TextOverflow.ellipsis,
+//                     style:
+//                         const TextStyle(
+//                       color: darkBrown,
+//                       fontSize: 16,
+//                       fontWeight:
+//                           FontWeight.w800,
+//                     ),
+//                   ),
+//                   const SizedBox(height: 3),
+//                   Text(
+//                     contact,
+//                     style:
+//                         const TextStyle(
+//                       color: mutedText,
+//                       fontSize: 12,
+//                     ),
+//                   ),
+//                 ],
+//               ),
+//             ),
+//             const SizedBox(width: 8),
+//             _statusChip(
+//               status,
+//               statusColor,
+//               statusBackground,
+//             ),
+//           ],
+//         ),
+
+//         const SizedBox(height: 14),
+
+//         Container(
+//           width: double.infinity,
+//           padding:
+//               const EdgeInsets.all(13),
+//           decoration: BoxDecoration(
+//             color: background,
+//             borderRadius:
+//                 BorderRadius.circular(14),
+//             border: Border.all(
+//               color: border,
+//             ),
+//           ),
+//           child: Column(
+//             children: [
+//               _mobileInfoTile(
+//                 Icons.confirmation_number_outlined,
+//                 'Bill Number',
+//                 billNumber,
+//               ),
+//               _mobileInfoTile(
+//                 Icons.inventory_2_outlined,
+//                 'Rented Items',
+//                 rented,
+//               ),
+//               _mobileInfoTile(
+//                 Icons.date_range_outlined,
+//                 'Rental Period',
+//                 '$dateFrom → $dateTill',
+//               ),
+//               _mobileInfoTile(
+//                 Icons.payments_outlined,
+//                 'Total Bill',
+//                 total,
+//                 bold: true,
+//                 last: true,
+//               ),
+//             ],
+//           ),
+//         ),
+
+//         const SizedBox(height: 12),
+
+//         SizedBox(
+//           width: double.infinity,
+//           child: _previewButton(bill),
+//         ),
+//       ],
+//     );
+//   }
+
+//   // ============================================================
+//   // CUSTOMER BLOCK
+//   // ============================================================
+
+//   Widget _customerBlock(
+//     String name,
+//     String contact,
+//   ) {
+//     return Row(
+//       children: [
+//         Container(
+//           width: 43,
+//           height: 43,
+//           decoration:
+//               BoxDecoration(
+//             color:
+//                 bronzeLight.withOpacity(.55),
+//             borderRadius:
+//                 BorderRadius.circular(12),
+//           ),
+//           child: const Icon(
+//             Icons.person_outline_rounded,
+//             color: bronzeDark,
+//             size: 22,
+//           ),
+//         ),
+//         const SizedBox(width: 10),
+//         Expanded(
+//           child: Column(
+//             crossAxisAlignment:
+//                 CrossAxisAlignment.start,
+//             children: [
+//               const Text(
+//                 'CUSTOMER',
+//                 style: TextStyle(
+//                   color: mutedText,
+//                   fontSize: 9,
+//                   fontWeight:
+//                       FontWeight.w800,
+//                   letterSpacing: .5,
+//                 ),
+//               ),
+//               const SizedBox(height: 3),
+//               Text(
+//                 name,
+//                 maxLines: 1,
+//                 overflow:
+//                     TextOverflow.ellipsis,
+//                 style:
+//                     const TextStyle(
+//                   color: darkBrown,
+//                   fontSize: 14,
+//                   fontWeight:
+//                       FontWeight.w800,
+//                 ),
+//               ),
+//               const SizedBox(height: 2),
+//               Text(
+//                 contact,
+//                 maxLines: 1,
+//                 overflow:
+//                     TextOverflow.ellipsis,
+//                 style:
+//                     const TextStyle(
+//                   color: mutedText,
+//                   fontSize: 11,
+//                 ),
+//               ),
+//             ],
+//           ),
+//         ),
+//       ],
+//     );
+//   }
+
+//   // ============================================================
+//   // BILL INFO
+//   // ============================================================
+
+//   Widget _billInfoColumn(
+//     String label,
+//     String value, {
+//     int maxLines = 1,
+//   }) {
+//     return Padding(
+//       padding:
+//           const EdgeInsets.symmetric(
+//         horizontal: 7,
+//       ),
+//       child: Column(
+//         crossAxisAlignment:
+//             CrossAxisAlignment.start,
+//         children: [
+//           Text(
+//             label.toUpperCase(),
+//             style:
+//                 const TextStyle(
+//               color: mutedText,
+//               fontSize: 9,
+//               fontWeight:
+//                   FontWeight.w800,
+//               letterSpacing: .3,
+//             ),
+//           ),
+//           const SizedBox(height: 5),
+//           Text(
+//             value,
+//             maxLines: maxLines,
+//             overflow:
+//                 TextOverflow.ellipsis,
+//             style:
+//                 const TextStyle(
+//               color: darkBrown,
+//               fontSize: 12,
+//               fontWeight:
+//                   FontWeight.w600,
+//             ),
+//           ),
+//         ],
+//       ),
+//     );
+//   }
+
+//   Widget _responsiveInfoRow(
+//     String label,
+//     String value, {
+//     bool bold = false,
+//   }) {
+//     return Padding(
+//       padding:
+//           const EdgeInsets.only(
+//         bottom: 8,
+//       ),
+//       child: Row(
+//         crossAxisAlignment:
+//             CrossAxisAlignment.start,
+//         children: [
+//           SizedBox(
+//             width: 105,
+//             child: Text(
+//               label,
+//               style:
+//                   const TextStyle(
+//                 color: mutedText,
+//                 fontSize: 11,
+//                 fontWeight:
+//                     FontWeight.w600,
+//               ),
+//             ),
+//           ),
+//           Expanded(
+//             child: Text(
+//               value,
+//               style: TextStyle(
+//                 color: bold
+//                     ? bronzeDark
+//                     : darkBrown,
+//                 fontSize: 12,
+//                 fontWeight: bold
+//                     ? FontWeight.w800
+//                     : FontWeight.w600,
+//               ),
+//             ),
+//           ),
+//         ],
+//       ),
+//     );
+//   }
+
+//   Widget _mobileInfoTile(
+//     IconData icon,
+//     String label,
+//     String value, {
+//     bool bold = false,
+//     bool last = false,
+//   }) {
+//     return Container(
+//       padding:
+//           const EdgeInsets.only(
+//         bottom: 10,
+//       ),
+//       margin:
+//           EdgeInsets.only(
+//         bottom: last ? 0 : 8,
+//       ),
+//       decoration:
+//           last
+//               ? null
+//               : const BoxDecoration(
+//                   border: Border(
+//                     bottom: BorderSide(
+//                       color: border,
+//                     ),
+//                   ),
+//                 ),
+//       child: Row(
+//         crossAxisAlignment:
+//             CrossAxisAlignment.start,
+//         children: [
+//           Icon(
+//             icon,
+//             color: bronze,
+//             size: 17,
+//           ),
+//           const SizedBox(width: 8),
+//           SizedBox(
+//             width: 92,
+//             child: Text(
+//               label,
+//               style:
+//                   const TextStyle(
+//                 color: mutedText,
+//                 fontSize: 11,
+//                 fontWeight:
+//                     FontWeight.w600,
+//               ),
+//             ),
+//           ),
+//           Expanded(
+//             child: Text(
+//               value,
+//               textAlign:
+//                   TextAlign.right,
+//               style: TextStyle(
+//                 color: bold
+//                     ? bronzeDark
+//                     : darkBrown,
+//                 fontSize: 12,
+//                 fontWeight: bold
+//                     ? FontWeight.w800
+//                     : FontWeight.w600,
+//               ),
+//             ),
+//           ),
+//         ],
+//       ),
+//     );
+//   }
+
+//   // ============================================================
+//   // STATUS CHIP
+//   // ============================================================
+
+//   Widget _statusChip(
+//     String status,
+//     Color color,
+//     Color backgroundColor,
+//   ) {
+//     return Container(
+//       padding:
+//           const EdgeInsets.symmetric(
+//         horizontal: 9,
+//         vertical: 7,
+//       ),
+//       decoration:
+//           BoxDecoration(
+//         color: backgroundColor,
+//         borderRadius:
+//             BorderRadius.circular(30),
+//         border: Border.all(
+//           color:
+//               color.withOpacity(.18),
+//         ),
+//       ),
+//       child: Row(
+//         mainAxisSize:
+//             MainAxisSize.min,
+//         children: [
+//           Icon(
+//             _statusIcon(status),
+//             color: color,
+//             size: 13,
+//           ),
+//           const SizedBox(width: 5),
+//           Text(
+//             status.toUpperCase(),
+//             style: TextStyle(
+//               color: color,
+//               fontSize: 9,
+//               fontWeight:
+//                   FontWeight.w800,
+//               letterSpacing: .3,
+//             ),
+//           ),
+//         ],
+//       ),
+//     );
+//   }
+
+//   // ============================================================
+//   // PREVIEW BUTTON
+//   // ============================================================
+
+//   Widget _previewButton(
+//     Map<String, dynamic> bill,
+//   ) {
+//     return ElevatedButton.icon(
+//       onPressed: () =>
+//           _openBillPreview(bill),
+//       icon: const Icon(
+//         Icons.visibility_rounded,
+//         size: 17,
+//       ),
+//       label: const Text(
+//         'Preview Bill',
+//       ),
+//       style: ElevatedButton.styleFrom(
+//         backgroundColor: bronze,
+//         foregroundColor: Colors.white,
+//         elevation: 0,
+//         padding:
+//             const EdgeInsets.symmetric(
+//           horizontal: 15,
+//           vertical: 12,
+//         ),
+//         shape:
+//             RoundedRectangleBorder(
+//           borderRadius:
+//               BorderRadius.circular(11),
+//         ),
+//       ),
+//     );
+//   }
+
+//   // ============================================================
+//   // EMPTY STATE
+//   // ============================================================
+
+//   Widget _emptyState() {
+//     final searching =
+//         _searchController.text
+//             .trim()
+//             .isNotEmpty;
+
+//     return Center(
+//       child: SingleChildScrollView(
+//         padding:
+//             const EdgeInsets.all(30),
+//         child: Container(
+//           constraints:
+//               const BoxConstraints(
+//             maxWidth: 480,
+//           ),
+//           padding:
+//               const EdgeInsets.all(30),
+//           decoration:
+//               BoxDecoration(
+//             color: surface,
+//             borderRadius:
+//                 BorderRadius.circular(22),
+//             border: Border.all(
+//               color: border,
+//             ),
+//           ),
+//           child: Column(
+//             mainAxisSize:
+//                 MainAxisSize.min,
+//             children: [
+//               Container(
+//                 width: 75,
+//                 height: 75,
+//                 decoration:
+//                     BoxDecoration(
+//                   color:
+//                       bronzeLight.withOpacity(.55),
+//                   shape: BoxShape.circle,
+//                 ),
+//                 child: const Icon(
+//                   Icons
+//                       .receipt_long_outlined,
+//                   size: 36,
+//                   color: bronzeDark,
+//                 ),
+//               ),
+//               const SizedBox(height: 17),
+//               Text(
+//                 searching
+//                     ? 'No exact match found'
+//                     : 'No bills found',
+//                 textAlign:
+//                     TextAlign.center,
+//                 style:
+//                     const TextStyle(
+//                   color: darkBrown,
+//                   fontSize: 18,
+//                   fontWeight:
+//                       FontWeight.w800,
+//                 ),
+//               ),
+//               const SizedBox(height: 7),
+//               Text(
+//                 searching
+//                     ? 'Enter the complete customer name, bill number or CNIC.'
+//                     : 'There are no bills in this category yet.',
+//                 textAlign:
+//                     TextAlign.center,
+//                 style:
+//                     const TextStyle(
+//                   color: mutedText,
+//                   fontSize: 13,
+//                   height: 1.5,
+//                 ),
+//               ),
+//             ],
+//           ),
+//         ),
+//       ),
+//     );
+//   }
+
+//   // ============================================================
+//   // ERROR STATE
+//   // ============================================================
+
+//   Widget _errorState(String error) {
+//     return Center(
+//       child: Padding(
+//         padding:
+//             const EdgeInsets.all(25),
+//         child: Container(
+//           constraints:
+//               const BoxConstraints(
+//             maxWidth: 520,
+//           ),
+//           padding:
+//               const EdgeInsets.all(25),
+//           decoration:
+//               BoxDecoration(
+//             color: surface,
+//             borderRadius:
+//                 BorderRadius.circular(20),
+//             border: Border.all(
+//               color:
+//                   const Color(0xFFE6C5C5),
+//             ),
+//           ),
+//           child: Column(
+//             mainAxisSize:
+//                 MainAxisSize.min,
+//             children: [
+//               const Icon(
+//                 Icons
+//                     .error_outline_rounded,
+//                 color:
+//                     Color(0xFFB64A4A),
+//                 size: 45,
+//               ),
+//               const SizedBox(height: 12),
+//               const Text(
+//                 'Unable to load bills',
+//                 style:
+//                     TextStyle(
+//                   color: darkBrown,
+//                   fontSize: 17,
+//                   fontWeight:
+//                       FontWeight.w800,
+//                 ),
+//               ),
+//               const SizedBox(height: 8),
+//               Text(
+//                 error,
+//                 textAlign:
+//                     TextAlign.center,
+//                 style:
+//                     const TextStyle(
+//                   color: mutedText,
+//                   fontSize: 12,
+//                 ),
+//               ),
+//             ],
+//           ),
+//         ),
+//       ),
+//     );
+//   }
+// }
+
+// // ============================================================
+// // BILL PREVIEW SCREEN
+// // ============================================================
+
+// class BillPreviewScreen
+//     extends StatelessWidget {
+//   final Uint8List pdfBytes;
+//   final String billNumber;
+
+//   const BillPreviewScreen({
+//     super.key,
+//     required this.pdfBytes,
+//     required this.billNumber,
+//   });
+
+//   static const Color background =
+//       Color(0xFFF7F2EA);
+
+//   static const Color surface =
+//       Color(0xFFFFFCF8);
+
+//   static const Color bronze =
+//       Color(0xFF9A6A3A);
+
+//   static const Color darkBrown =
+//       Color(0xFF2C2119);
+
+//   Future<void> _download() async {
+//     await Printing.sharePdf(
+//       bytes: pdfBytes,
+//       filename: '$billNumber.pdf',
+//     );
+//   }
+
+//   Future<void> _print() async {
+//     await Printing.layoutPdf(
+//       onLayout: (_) async => pdfBytes,
+//     );
+//   }
+
+//   @override
+//   Widget build(
+//     BuildContext context,
+//   ) {
+//     return Scaffold(
+//       backgroundColor:
+//           background,
+
+//       appBar: AppBar(
+//         backgroundColor:
+//             surface,
+//         foregroundColor:
+//             darkBrown,
+//         elevation: 0,
+//         surfaceTintColor:
+//             Colors.transparent,
+
+//         titleSpacing: 8,
+
+//         title: Row(
+//           children: [
+//             Container(
+//               width: 38,
+//               height: 38,
+//               decoration:
+//                   BoxDecoration(
+//                 color:
+//                     bronze.withOpacity(.10),
+//                 borderRadius:
+//                     BorderRadius.circular(11),
+//               ),
+//               child:
+//                   const Icon(
+//                 Icons
+//                     .receipt_long_rounded,
+//                 color: bronze,
+//                 size: 20,
+//               ),
+//             ),
+//             const SizedBox(width: 10),
+//             Expanded(
+//               child: Text(
+//                 'Bill Preview - $billNumber',
+//                 maxLines: 1,
+//                 overflow:
+//                     TextOverflow.ellipsis,
+//                 style:
+//                     const TextStyle(
+//                   color: darkBrown,
+//                   fontSize: 16,
+//                   fontWeight:
+//                       FontWeight.w700,
+//                 ),
+//               ),
+//             ),
+//           ],
+//         ),
+
+//         actions: [
+//           IconButton(
+//             tooltip:
+//                 'Download / Save',
+//             onPressed: _download,
+//             icon:
+//                 const Icon(
+//               Icons
+//                   .download_rounded,
+//               color: bronze,
+//             ),
+//           ),
+//           IconButton(
+//             tooltip: 'Print',
+//             onPressed: _print,
+//             icon:
+//                 const Icon(
+//               Icons.print_rounded,
+//               color: bronze,
+//             ),
+//           ),
+//           const SizedBox(width: 5),
+//         ],
+//       ),
+
+//       body: Container(
+//         color: background,
+//         padding:
+//             const EdgeInsets.all(8),
+//         child: PdfPreview(
+//           build: (_) async =>
+//               pdfBytes,
+
+//           allowPrinting: true,
+//           allowSharing: true,
+
+//           canChangePageFormat:
+//               false,
+
+//           canChangeOrientation:
+//               false,
+
+//           pdfFileName:
+//               '$billNumber.pdf',
+//         ),
+//       ),
+//     );
+//   }
+// }
+
+
+
+
+
+
+
+
+
+
 import 'dart:typed_data';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:inventory_management/Screens/drawer.dart';
 import 'package:pdf/pdf.dart';
@@ -3650,6 +6182,33 @@ class _BillsManagementScreenState
 
   String _selectedFilter = 'All';
 
+  // ============================================================
+  // FIREBASE USER / COLLECTION
+  // ============================================================
+
+  User? get _currentUser {
+    return FirebaseAuth.instance.currentUser;
+  }
+
+  DocumentReference<Map<String, dynamic>> get _userDocument {
+    final user = _currentUser;
+
+    if (user == null) {
+      throw Exception(
+        'No user is currently logged in.',
+      );
+    }
+
+    return FirebaseFirestore.instance
+        .collection('Users')
+        .doc(user.uid);
+  }
+
+  CollectionReference<Map<String, dynamic>>
+      get _billsCollection {
+    return _userDocument.collection('bills');
+  }
+
   @override
   void dispose() {
     _searchController.dispose();
@@ -3660,9 +6219,13 @@ class _BillsManagementScreenState
   // PAYMENT STATUS
   // ============================================================
 
-  String _getPaymentStatus(Map<String, dynamic> bill) {
+  String _getPaymentStatus(
+    Map<String, dynamic> bill,
+  ) {
     final savedStatus =
-        (bill['paymentStatus'] ?? '').toString().toLowerCase();
+        (bill['paymentStatus'] ?? '')
+            .toString()
+            .toLowerCase();
 
     if (savedStatus == 'paid' ||
         savedStatus == 'partial' ||
@@ -3670,8 +6233,11 @@ class _BillsManagementScreenState
       return savedStatus;
     }
 
-    final total = _toDouble(bill['totalAmount']);
-    final paid = _toDouble(bill['paidAmount']);
+    final total =
+        _toDouble(bill['totalAmount']);
+
+    final paid =
+        _toDouble(bill['paidAmount']);
 
     if (total <= 0 || paid >= total) {
       return 'paid';
@@ -3703,9 +6269,13 @@ class _BillsManagementScreenState
   // EXACT SEARCH
   // ============================================================
 
-  bool _matchesSearch(Map<String, dynamic> bill) {
+  bool _matchesSearch(
+    Map<String, dynamic> bill,
+  ) {
     final query =
-        _searchController.text.trim().toLowerCase();
+        _searchController.text
+            .trim()
+            .toLowerCase();
 
     if (query.isEmpty) {
       return true;
@@ -3738,7 +6308,9 @@ class _BillsManagementScreenState
   // RENTED ITEMS
   // ============================================================
 
-  String _getRentedItems(Map<String, dynamic> bill) {
+  String _getRentedItems(
+    Map<String, dynamic> bill,
+  ) {
     final items = bill['items'];
 
     if (items is! List || items.isEmpty) {
@@ -3755,7 +6327,9 @@ class _BillsManagementScreenState
         final quantity =
             item['quantity'] ?? 0;
 
-        result.add('$name x$quantity');
+        result.add(
+          '$name x$quantity',
+        );
       }
     }
 
@@ -3768,7 +6342,9 @@ class _BillsManagementScreenState
   // STATUS COLOR
   // ============================================================
 
-  Color _statusColor(String status) {
+  Color _statusColor(
+    String status,
+  ) {
     switch (status) {
       case 'paid':
         return const Color(0xFF3F7D52);
@@ -3781,7 +6357,9 @@ class _BillsManagementScreenState
     }
   }
 
-  Color _statusBackground(String status) {
+  Color _statusBackground(
+    String status,
+  ) {
     switch (status) {
       case 'paid':
         return const Color(0xFFE5F2E8);
@@ -3794,7 +6372,9 @@ class _BillsManagementScreenState
     }
   }
 
-  IconData _statusIcon(String status) {
+  IconData _statusIcon(
+    String status,
+  ) {
     switch (status) {
       case 'paid':
         return Icons.check_circle_rounded;
@@ -3834,10 +6414,13 @@ class _BillsManagementScreenState
     } catch (e) {
       if (!mounted) return;
 
-      ScaffoldMessenger.of(context).showSnackBar(
+      ScaffoldMessenger.of(context)
+          .showSnackBar(
         SnackBar(
-          backgroundColor: const Color(0xFFB64A4A),
-          behavior: SnackBarBehavior.floating,
+          backgroundColor:
+              const Color(0xFFB64A4A),
+          behavior:
+              SnackBarBehavior.floating,
           content: Text(
             'Could not create bill preview: $e',
           ),
@@ -3859,16 +6442,31 @@ class _BillsManagementScreenState
         _getPaymentStatus(bill);
 
     final billNumber =
-        (bill['billNumber'] ?? 'N/A').toString();
+        (bill['billNumber'] ?? 'N/A')
+            .toString();
 
     final customerName =
-        (bill['customerName'] ?? 'N/A').toString();
+        (bill['customerName'] ?? 'N/A')
+            .toString();
 
     final contact =
-        (bill['contactNumber'] ?? 'N/A').toString();
+        (bill['contactNumber'] ?? 'N/A')
+            .toString();
 
     final cnic =
-        (bill['cnic'] ?? 'N/A').toString();
+        (bill['cnic'] ?? 'N/A')
+            .toString();
+
+    // ==========================================================
+    // RENTAL LOCATION
+    // IMPORTANT:
+    // This is read from the SAME BILL DOCUMENT.
+    // ==========================================================
+
+    final rentalLocation =
+        (bill['rentalLocation'] ?? 'N/A')
+            .toString()
+            .trim();
 
     final subtotal =
         _toDouble(bill['subtotal']);
@@ -3885,7 +6483,8 @@ class _BillsManagementScreenState
     final remaining =
         _toDouble(bill['remainingAmount']);
 
-    final items = <Map<String, dynamic>>[];
+    final items =
+        <Map<String, dynamic>>[];
 
     if (bill['items'] is List) {
       for (final item in bill['items']) {
@@ -3899,7 +6498,8 @@ class _BillsManagementScreenState
 
     pdf.addPage(
       pw.MultiPage(
-        pageFormat: PdfPageFormat.a4,
+        pageFormat:
+            PdfPageFormat.a4,
         margin:
             const pw.EdgeInsets.all(32),
         build: (context) {
@@ -3909,7 +6509,8 @@ class _BillsManagementScreenState
                   const pw.EdgeInsets.all(18),
               decoration:
                   pw.BoxDecoration(
-                border: pw.Border.all(
+                border:
+                    pw.Border.all(
                   color:
                       PdfColors.blueGrey700,
                   width: 1.2,
@@ -3921,13 +6522,18 @@ class _BillsManagementScreenState
                 crossAxisAlignment:
                     pw.CrossAxisAlignment.start,
                 children: [
+                  // ==================================================
+                  // HEADER
+                  // ==================================================
+
                   pw.Row(
                     mainAxisAlignment:
                         pw.MainAxisAlignment.spaceBetween,
                     children: [
                       pw.Text(
                         'RENTAL BILL',
-                        style: pw.TextStyle(
+                        style:
+                            pw.TextStyle(
                           fontSize: 24,
                           fontWeight:
                               pw.FontWeight.bold,
@@ -3952,7 +6558,8 @@ class _BillsManagementScreenState
                         ),
                         child: pw.Text(
                           status.toUpperCase(),
-                          style: pw.TextStyle(
+                          style:
+                              pw.TextStyle(
                             color:
                                 PdfColors.white,
                             fontWeight:
@@ -3963,9 +6570,15 @@ class _BillsManagementScreenState
                     ],
                   ),
 
-                  pw.SizedBox(height: 15),
+                  pw.SizedBox(
+                    height: 15,
+                  ),
 
                   pw.Divider(),
+
+                  // ==================================================
+                  // BILL INFORMATION
+                  // ==================================================
 
                   _pdfInfoRow(
                     'Bill Number',
@@ -3979,18 +6592,27 @@ class _BillsManagementScreenState
                     ),
                   ),
 
-                  pw.SizedBox(height: 10),
+                  pw.SizedBox(
+                    height: 10,
+                  ),
+
+                  // ==================================================
+                  // CUSTOMER DETAILS
+                  // ==================================================
 
                   pw.Text(
                     'CUSTOMER DETAILS',
-                    style: pw.TextStyle(
+                    style:
+                        pw.TextStyle(
                       fontSize: 12,
                       fontWeight:
                           pw.FontWeight.bold,
                     ),
                   ),
 
-                  pw.SizedBox(height: 7),
+                  pw.SizedBox(
+                    height: 7,
+                  ),
 
                   _pdfInfoRow(
                     'Name',
@@ -4007,18 +6629,38 @@ class _BillsManagementScreenState
                     cnic,
                   ),
 
-                  pw.SizedBox(height: 10),
+                  // ==================================================
+                  // RENTAL LOCATION
+                  // ==================================================
+
+                  _pdfInfoRow(
+                    'Rental Location',
+                    rentalLocation.isEmpty
+                        ? 'N/A'
+                        : rentalLocation,
+                  ),
+
+                  pw.SizedBox(
+                    height: 10,
+                  ),
+
+                  // ==================================================
+                  // RENTAL PERIOD
+                  // ==================================================
 
                   pw.Text(
                     'RENTAL PERIOD',
-                    style: pw.TextStyle(
+                    style:
+                        pw.TextStyle(
                       fontSize: 12,
                       fontWeight:
                           pw.FontWeight.bold,
                     ),
                   ),
 
-                  pw.SizedBox(height: 7),
+                  pw.SizedBox(
+                    height: 7,
+                  ),
 
                   _pdfInfoRow(
                     'From',
@@ -4034,18 +6676,27 @@ class _BillsManagementScreenState
                     ),
                   ),
 
-                  pw.SizedBox(height: 16),
+                  pw.SizedBox(
+                    height: 16,
+                  ),
+
+                  // ==================================================
+                  // RENTED ITEMS
+                  // ==================================================
 
                   pw.Text(
                     'RENTED ITEMS',
-                    style: pw.TextStyle(
+                    style:
+                        pw.TextStyle(
                       fontSize: 12,
                       fontWeight:
                           pw.FontWeight.bold,
                     ),
                   ),
 
-                  pw.SizedBox(height: 8),
+                  pw.SizedBox(
+                    height: 8,
+                  ),
 
                   pw.Table(
                     border:
@@ -4093,6 +6744,7 @@ class _BillsManagementScreenState
                           ),
                         ],
                       ),
+
                       ...items.map(
                         (item) {
                           final quantity =
@@ -4138,7 +6790,13 @@ class _BillsManagementScreenState
                     ],
                   ),
 
-                  pw.SizedBox(height: 18),
+                  pw.SizedBox(
+                    height: 18,
+                  ),
+
+                  // ==================================================
+                  // AMOUNTS
+                  // ==================================================
 
                   pw.Align(
                     alignment:
@@ -4151,20 +6809,25 @@ class _BillsManagementScreenState
                             'Actual Amount',
                             subtotal,
                           ),
+
                           _pdfAmountRow(
                             'Discount',
                             discount,
                           ),
+
                           pw.Divider(),
+
                           _pdfAmountRow(
                             'Total Amount',
                             total,
                             bold: true,
                           ),
+
                           _pdfAmountRow(
                             'Paid',
                             paid,
                           ),
+
                           _pdfAmountRow(
                             'Remaining',
                             remaining,
@@ -4175,11 +6838,19 @@ class _BillsManagementScreenState
                     ),
                   ),
 
-                  pw.SizedBox(height: 18),
+                  pw.SizedBox(
+                    height: 18,
+                  ),
 
                   pw.Divider(),
 
-                  pw.SizedBox(height: 8),
+                  pw.SizedBox(
+                    height: 8,
+                  ),
+
+                  // ==================================================
+                  // PAYMENT STATUS
+                  // ==================================================
 
                   if (status == 'paid')
                     pw.Center(
@@ -4191,7 +6862,8 @@ class _BillsManagementScreenState
                         ),
                         decoration:
                             pw.BoxDecoration(
-                          border: pw.Border.all(
+                          border:
+                              pw.Border.all(
                             color:
                                 PdfColors.green,
                             width: 3,
@@ -4199,7 +6871,8 @@ class _BillsManagementScreenState
                         ),
                         child: pw.Text(
                           'PAID',
-                          style: pw.TextStyle(
+                          style:
+                              pw.TextStyle(
                             color:
                                 PdfColors.green,
                             fontSize: 24,
@@ -4230,6 +6903,10 @@ class _BillsManagementScreenState
     return pdf.save();
   }
 
+  // ============================================================
+  // PDF INFO ROW
+  // ============================================================
+
   pw.Widget _pdfInfoRow(
     String label,
     String value,
@@ -4240,24 +6917,33 @@ class _BillsManagementScreenState
         bottom: 4,
       ),
       child: pw.Row(
+        crossAxisAlignment:
+            pw.CrossAxisAlignment.start,
         children: [
           pw.SizedBox(
             width: 105,
             child: pw.Text(
               label,
-              style: pw.TextStyle(
+              style:
+                  pw.TextStyle(
                 fontWeight:
                     pw.FontWeight.bold,
               ),
             ),
           ),
           pw.Expanded(
-            child: pw.Text(value),
+            child: pw.Text(
+              value,
+            ),
           ),
         ],
       ),
     );
   }
+
+  // ============================================================
+  // PDF TABLE CELL
+  // ============================================================
 
   pw.Widget _pdfTableCell(
     String text, {
@@ -4268,7 +6954,8 @@ class _BillsManagementScreenState
           const pw.EdgeInsets.all(7),
       child: pw.Text(
         text,
-        style: pw.TextStyle(
+        style:
+            pw.TextStyle(
           fontSize: 9,
           fontWeight: bold
               ? pw.FontWeight.bold
@@ -4277,6 +6964,10 @@ class _BillsManagementScreenState
       ),
     );
   }
+
+  // ============================================================
+  // PDF AMOUNT ROW
+  // ============================================================
 
   pw.Widget _pdfAmountRow(
     String label,
@@ -4294,7 +6985,8 @@ class _BillsManagementScreenState
         children: [
           pw.Text(
             label,
-            style: pw.TextStyle(
+            style:
+                pw.TextStyle(
               fontWeight: bold
                   ? pw.FontWeight.bold
                   : pw.FontWeight.normal,
@@ -4302,7 +6994,8 @@ class _BillsManagementScreenState
           ),
           pw.Text(
             'Rs. ${value.toStringAsFixed(0)}',
-            style: pw.TextStyle(
+            style:
+                pw.TextStyle(
               fontWeight: bold
                   ? pw.FontWeight.bold
                   : pw.FontWeight.normal,
@@ -4312,6 +7005,10 @@ class _BillsManagementScreenState
       ),
     );
   }
+
+  // ============================================================
+  // PDF STATUS COLOR
+  // ============================================================
 
   PdfColor _pdfStatusColor(
     String status,
@@ -4328,7 +7025,13 @@ class _BillsManagementScreenState
     }
   }
 
-  String _formatDate(dynamic value) {
+  // ============================================================
+  // FORMAT DATE
+  // ============================================================
+
+  String _formatDate(
+    dynamic value,
+  ) {
     DateTime? date;
 
     if (value is Timestamp) {
@@ -4353,15 +7056,41 @@ class _BillsManagementScreenState
   // ============================================================
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(
+    BuildContext context,
+  ) {
+    final user =
+        FirebaseAuth.instance.currentUser;
+
+    if (user == null) {
+      return Scaffold(
+        backgroundColor: background,
+        body: const Center(
+          child: Text(
+            'Please log in to view bills.',
+            style: TextStyle(
+              color: darkBrown,
+              fontSize: 16,
+              fontWeight:
+                  FontWeight.w600,
+            ),
+          ),
+        ),
+      );
+    }
+
     return Scaffold(
-      backgroundColor: background,
+      backgroundColor:
+          background,
 
       appBar: AppBar(
-        backgroundColor: surface,
-        foregroundColor: darkBrown,
+        backgroundColor:
+            surface,
+        foregroundColor:
+            darkBrown,
         elevation: 0,
-        surfaceTintColor: Colors.transparent,
+        surfaceTintColor:
+            Colors.transparent,
         titleSpacing: 20,
         title: const Row(
           children: [
@@ -4375,7 +7104,8 @@ class _BillsManagementScreenState
               'Bill Management',
               style: TextStyle(
                 color: darkBrown,
-                fontWeight: FontWeight.w700,
+                fontWeight:
+                    FontWeight.w700,
                 fontSize: 19,
               ),
             ),
@@ -4387,17 +7117,24 @@ class _BillsManagementScreenState
         selectedIndex: 4,
       ),
 
+      // ==========================================================
+      // IMPORTANT:
+      // Bills are now loaded from:
+      //
+      // Users/{currentUserUid}/bills
+      //
+      // ==========================================================
+
       body: StreamBuilder<
           QuerySnapshot<
               Map<String, dynamic>>>(
-        stream: FirebaseFirestore
-            .instance
-            .collection('bills')
+        stream: _billsCollection
             .orderBy(
               'createdAt',
               descending: true,
             )
             .snapshots(),
+
         builder:
             (context, snapshot) {
           if (snapshot.hasError) {
@@ -4409,7 +7146,8 @@ class _BillsManagementScreenState
           if (snapshot.connectionState ==
               ConnectionState.waiting) {
             return const Center(
-              child: CircularProgressIndicator(
+              child:
+                  CircularProgressIndicator(
                 color: bronze,
               ),
             );
@@ -4525,7 +7263,8 @@ class _BillsManagementScreenState
     bool isTablet,
   ) {
     return Padding(
-      padding: EdgeInsets.fromLTRB(
+      padding:
+          EdgeInsets.fromLTRB(
         isMobile ? 14 : 28,
         isMobile ? 14 : 22,
         isMobile ? 14 : 28,
@@ -4533,23 +7272,29 @@ class _BillsManagementScreenState
       ),
       child: Container(
         width: double.infinity,
-        padding: EdgeInsets.all(
+        padding:
+            EdgeInsets.all(
           isMobile ? 18 : 22,
         ),
-        decoration: BoxDecoration(
-          gradient: const LinearGradient(
+        decoration:
+            BoxDecoration(
+          gradient:
+              const LinearGradient(
             colors: [
               bronzeDark,
               bronze,
             ],
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
+            begin:
+                Alignment.topLeft,
+            end:
+                Alignment.bottomRight,
           ),
           borderRadius:
               BorderRadius.circular(20),
           boxShadow: [
             BoxShadow(
-              color: bronze.withOpacity(.20),
+              color:
+                  bronze.withOpacity(.20),
               blurRadius: 18,
               offset:
                   const Offset(0, 8),
@@ -4562,14 +7307,20 @@ class _BillsManagementScreenState
                     CrossAxisAlignment.start,
                 children: [
                   _headerIcon(),
-                  const SizedBox(height: 14),
-                  _headerText(totalBills),
+                  const SizedBox(
+                    height: 14,
+                  ),
+                  _headerText(
+                    totalBills,
+                  ),
                 ],
               )
             : Row(
                 children: [
                   _headerIcon(),
-                  const SizedBox(width: 16),
+                  const SizedBox(
+                    width: 16,
+                  ),
                   Expanded(
                     child:
                         _headerText(
@@ -4588,17 +7339,20 @@ class _BillsManagementScreenState
     return Container(
       width: 50,
       height: 50,
-      decoration: BoxDecoration(
-        color: Colors.white
-            .withOpacity(.14),
+      decoration:
+          BoxDecoration(
+        color:
+            Colors.white.withOpacity(.14),
         borderRadius:
             BorderRadius.circular(15),
-        border: Border.all(
-          color: Colors.white
-              .withOpacity(.20),
+        border:
+            Border.all(
+          color:
+              Colors.white.withOpacity(.20),
         ),
       ),
-      child: const Icon(
+      child:
+          const Icon(
         Icons.receipt_long_rounded,
         color: Colors.white,
         size: 26,
@@ -4606,7 +7360,9 @@ class _BillsManagementScreenState
     );
   }
 
-  Widget _headerText(int totalBills) {
+  Widget _headerText(
+    int totalBills,
+  ) {
     return Column(
       crossAxisAlignment:
           CrossAxisAlignment.start,
@@ -4616,15 +7372,19 @@ class _BillsManagementScreenState
           style: TextStyle(
             color: Colors.white,
             fontSize: 22,
-            fontWeight: FontWeight.w800,
+            fontWeight:
+                FontWeight.w800,
           ),
         ),
-        const SizedBox(height: 5),
+        const SizedBox(
+          height: 5,
+        ),
         Text(
           '$totalBills bill${totalBills == 1 ? '' : 's'} recorded in your rental system',
-          style: TextStyle(
-            color: Colors.white
-                .withOpacity(.82),
+          style:
+              TextStyle(
+            color:
+                Colors.white.withOpacity(.82),
             fontSize: 13,
           ),
         ),
@@ -4636,13 +7396,15 @@ class _BillsManagementScreenState
     return Container(
       width: 110,
       height: 70,
-      decoration: BoxDecoration(
-        color: Colors.white
-            .withOpacity(.07),
+      decoration:
+          BoxDecoration(
+        color:
+            Colors.white.withOpacity(.07),
         borderRadius:
             BorderRadius.circular(20),
       ),
-      child: const Center(
+      child:
+          const Center(
         child: Icon(
           Icons.payments_outlined,
           color: Colors.white,
@@ -4657,8 +7419,9 @@ class _BillsManagementScreenState
   // ============================================================
 
   Widget _buildSummary(
-    List<QueryDocumentSnapshot<
-            Map<String, dynamic>>>
+    List<
+            QueryDocumentSnapshot<
+                Map<String, dynamic>>>
         documents,
     double width,
   ) {
@@ -4725,7 +7488,8 @@ class _BillsManagementScreenState
     if (width < 600) {
       return SizedBox(
         height: 105,
-        child: ListView.separated(
+        child:
+            ListView.separated(
           scrollDirection:
               Axis.horizontal,
           padding:
@@ -4746,7 +7510,8 @@ class _BillsManagementScreenState
               (_, index) {
             return SizedBox(
               width: 155,
-              child: cards[index],
+              child:
+                  cards[index],
             );
           },
         ),
@@ -4754,7 +7519,8 @@ class _BillsManagementScreenState
     }
 
     return Padding(
-      padding: EdgeInsets.fromLTRB(
+      padding:
+          EdgeInsets.fromLTRB(
         width < 1000 ? 22 : 30,
         14,
         width < 1000 ? 22 : 30,
@@ -4763,16 +7529,23 @@ class _BillsManagementScreenState
       child: Wrap(
         spacing: 12,
         runSpacing: 12,
-        children: cards
-            .map(
-              (card) => SizedBox(
-                width: width < 1000
-                    ? (width - 56) / 2
-                    : (width - 102) / 4,
-                child: card,
-              ),
-            )
-            .toList(),
+        children:
+            cards
+                .map(
+                  (card) =>
+                      SizedBox(
+                    width:
+                        width < 1000
+                            ? (width -
+                                    56) /
+                                2
+                            : (width -
+                                    102) /
+                                4,
+                    child: card,
+                  ),
+                )
+                .toList(),
       ),
     );
   }
@@ -4787,43 +7560,51 @@ class _BillsManagementScreenState
       height: 82,
       padding:
           const EdgeInsets.all(14),
-      decoration: BoxDecoration(
+      decoration:
+          BoxDecoration(
         color: surface,
         borderRadius:
             BorderRadius.circular(17),
-        border: Border.all(
+        border:
+            Border.all(
           color: border,
         ),
         boxShadow: [
           BoxShadow(
-            color: darkBrown
-                .withOpacity(.045),
+            color:
+                darkBrown.withOpacity(.045),
             blurRadius: 12,
             offset:
                 const Offset(0, 4),
           ),
         ],
       ),
-      child: Row(
+      child:
+          Row(
         children: [
           Container(
             width: 44,
             height: 44,
-            decoration: BoxDecoration(
+            decoration:
+                BoxDecoration(
               color:
                   accent.withOpacity(.10),
               borderRadius:
                   BorderRadius.circular(13),
             ),
-            child: Icon(
+            child:
+                Icon(
               icon,
               color: accent,
               size: 22,
             ),
           ),
-          const SizedBox(width: 11),
+          const SizedBox(
+            width: 11,
+          ),
           Expanded(
-            child: Column(
+            child:
+                Column(
               mainAxisAlignment:
                   MainAxisAlignment.center,
               crossAxisAlignment:
@@ -4834,17 +7615,21 @@ class _BillsManagementScreenState
                   maxLines: 1,
                   overflow:
                       TextOverflow.ellipsis,
-                  style: const TextStyle(
+                  style:
+                      const TextStyle(
                     color: mutedText,
                     fontSize: 11,
                     fontWeight:
                         FontWeight.w600,
                   ),
                 ),
-                const SizedBox(height: 3),
+                const SizedBox(
+                  height: 3,
+                ),
                 Text(
                   '$value',
-                  style: const TextStyle(
+                  style:
+                      const TextStyle(
                     color: darkBrown,
                     fontSize: 21,
                     fontWeight:
@@ -4877,7 +7662,8 @@ class _BillsManagementScreenState
       onChanged: (_) {
         setState(() {});
       },
-      style: const TextStyle(
+      style:
+          const TextStyle(
         color: darkBrown,
         fontSize: 14,
       ),
@@ -4885,7 +7671,8 @@ class _BillsManagementScreenState
           InputDecoration(
         hintText:
             'Search exact name, bill number or CNIC',
-        hintStyle: const TextStyle(
+        hintStyle:
+            const TextStyle(
           color: mutedText,
           fontSize: 13,
         ),
@@ -4902,14 +7689,17 @@ class _BillsManagementScreenState
                 : IconButton(
                     icon:
                         const Icon(
-                      Icons
-                          .clear_rounded,
-                      color: mutedText,
+                      Icons.clear_rounded,
+                      color:
+                          mutedText,
                     ),
-                    onPressed: () {
+                    onPressed:
+                        () {
                       _searchController
                           .clear();
-                      setState(() {});
+                      setState(
+                        () {},
+                      );
                     },
                   ),
         filled: true,
@@ -4923,9 +7713,7 @@ class _BillsManagementScreenState
         border:
             OutlineInputBorder(
           borderRadius:
-              BorderRadius.circular(
-            14,
-          ),
+              BorderRadius.circular(14),
           borderSide:
               const BorderSide(
             color: border,
@@ -4934,9 +7722,7 @@ class _BillsManagementScreenState
         enabledBorder:
             OutlineInputBorder(
           borderRadius:
-              BorderRadius.circular(
-            14,
-          ),
+              BorderRadius.circular(14),
           borderSide:
               const BorderSide(
             color: border,
@@ -4945,9 +7731,7 @@ class _BillsManagementScreenState
         focusedBorder:
             OutlineInputBorder(
           borderRadius:
-              BorderRadius.circular(
-            14,
-          ),
+              BorderRadius.circular(14),
           borderSide:
               const BorderSide(
             color: bronze,
@@ -4989,11 +7773,13 @@ class _BillsManagementScreenState
           color: surface,
           borderRadius:
               BorderRadius.circular(14),
-          border: Border.all(
+          border:
+              Border.all(
             color: border,
           ),
         ),
-        child: Row(
+        child:
+            Row(
           mainAxisSize:
               MainAxisSize.min,
           children: [
@@ -5002,7 +7788,9 @@ class _BillsManagementScreenState
               color: bronze,
               size: 19,
             ),
-            const SizedBox(width: 8),
+            const SizedBox(
+              width: 8,
+            ),
             Text(
               _selectedFilter,
               style:
@@ -5013,7 +7801,9 @@ class _BillsManagementScreenState
                 fontSize: 13,
               ),
             ),
-            const SizedBox(width: 5),
+            const SizedBox(
+              width: 5,
+            ),
             const Icon(
               Icons
                   .keyboard_arrow_down_rounded,
@@ -5025,7 +7815,8 @@ class _BillsManagementScreenState
     );
 
     return Padding(
-      padding: EdgeInsets.fromLTRB(
+      padding:
+          EdgeInsets.fromLTRB(
         horizontalPadding,
         3,
         horizontalPadding,
@@ -5035,7 +7826,9 @@ class _BillsManagementScreenState
           ? Column(
               children: [
                 searchField,
-                const SizedBox(height: 9),
+                const SizedBox(
+                  height: 9,
+                ),
                 Align(
                   alignment:
                       Alignment.centerLeft,
@@ -5047,9 +7840,12 @@ class _BillsManagementScreenState
           : Row(
               children: [
                 Expanded(
-                  child: searchField,
+                  child:
+                      searchField,
                 ),
-                const SizedBox(width: 12),
+                const SizedBox(
+                  width: 12,
+                ),
                 filterButton,
               ],
             ),
@@ -5057,10 +7853,13 @@ class _BillsManagementScreenState
   }
 
   PopupMenuItem<String>
-      _filterMenuItem(String value) {
+      _filterMenuItem(
+    String value,
+  ) {
     return PopupMenuItem<String>(
       value: value,
-      child: Row(
+      child:
+          Row(
         children: [
           Icon(
             value == 'All'
@@ -5081,7 +7880,9 @@ class _BillsManagementScreenState
                   ),
             size: 19,
           ),
-          const SizedBox(width: 9),
+          const SizedBox(
+            width: 9,
+          ),
           Text(
             value,
             style:
@@ -5167,13 +7968,14 @@ class _BillsManagementScreenState
         color: surface,
         borderRadius:
             BorderRadius.circular(18),
-        border: Border.all(
+        border:
+            Border.all(
           color: border,
         ),
         boxShadow: [
           BoxShadow(
-            color: darkBrown
-                .withOpacity(.045),
+            color:
+                darkBrown.withOpacity(.045),
             blurRadius: 13,
             offset:
                 const Offset(0, 5),
@@ -5235,12 +8037,15 @@ class _BillsManagementScreenState
           Row(
             children: [
               Expanded(
-                child: _customerBlock(
+                child:
+                    _customerBlock(
                   name,
                   contact,
                 ),
               ),
-              const SizedBox(width: 15),
+              const SizedBox(
+                width: 15,
+              ),
               _statusChip(
                 status,
                 statusColor,
@@ -5248,16 +8053,22 @@ class _BillsManagementScreenState
               ),
             ],
           ),
-          const SizedBox(height: 15),
+          const SizedBox(
+            height: 15,
+          ),
           Container(
             padding:
                 const EdgeInsets.all(13),
-            decoration: BoxDecoration(
+            decoration:
+                BoxDecoration(
               color: background,
               borderRadius:
-                  BorderRadius.circular(13),
+                  BorderRadius.circular(
+                13,
+              ),
             ),
-            child: Column(
+            child:
+                Column(
               children: [
                 _responsiveInfoRow(
                   'Bill Number',
@@ -5272,6 +8083,12 @@ class _BillsManagementScreenState
                   '$dateFrom → $dateTill',
                 ),
                 _responsiveInfoRow(
+                  'Rental Location',
+                  (bill['rentalLocation'] ??
+                          'N/A')
+                      .toString(),
+                ),
+                _responsiveInfoRow(
                   'Total Bill',
                   total,
                   bold: true,
@@ -5279,10 +8096,13 @@ class _BillsManagementScreenState
               ],
             ),
           ),
-          const SizedBox(height: 12),
+          const SizedBox(
+            height: 12,
+          ),
           SizedBox(
             width: double.infinity,
-            child: _previewButton(bill),
+            child:
+                _previewButton(bill),
           ),
         ],
       );
@@ -5294,7 +8114,8 @@ class _BillsManagementScreenState
       children: [
         Expanded(
           flex: 2,
-          child: _customerBlock(
+          child:
+              _customerBlock(
             name,
             contact,
           ),
@@ -5302,7 +8123,8 @@ class _BillsManagementScreenState
 
         Expanded(
           flex: 2,
-          child: _billInfoColumn(
+          child:
+              _billInfoColumn(
             'Bill Number',
             billNumber,
           ),
@@ -5310,7 +8132,8 @@ class _BillsManagementScreenState
 
         Expanded(
           flex: 3,
-          child: _billInfoColumn(
+          child:
+              _billInfoColumn(
             'Rented Items',
             rented,
             maxLines: 2,
@@ -5319,7 +8142,8 @@ class _BillsManagementScreenState
 
         Expanded(
           flex: 2,
-          child: _billInfoColumn(
+          child:
+              _billInfoColumn(
             'Rental Period',
             '$dateFrom\n$dateTill',
           ),
@@ -5327,31 +8151,38 @@ class _BillsManagementScreenState
 
         SizedBox(
           width: 95,
-          child: _statusChip(
+          child:
+              _statusChip(
             status,
             statusColor,
             statusBackground,
           ),
         ),
 
-        const SizedBox(width: 15),
+        const SizedBox(
+          width: 15,
+        ),
 
         SizedBox(
           width: 105,
-          child: Column(
+          child:
+              Column(
             crossAxisAlignment:
                 CrossAxisAlignment.end,
             children: [
               const Text(
                 'TOTAL',
-                style: TextStyle(
+                style:
+                    TextStyle(
                   color: mutedText,
                   fontSize: 10,
                   fontWeight:
                       FontWeight.w700,
                 ),
               ),
-              const SizedBox(height: 4),
+              const SizedBox(
+                height: 4,
+              ),
               Text(
                 total,
                 maxLines: 1,
@@ -5369,7 +8200,9 @@ class _BillsManagementScreenState
           ),
         ),
 
-        const SizedBox(width: 15),
+        const SizedBox(
+          width: 15,
+        ),
 
         _previewButton(bill),
       ],
@@ -5393,6 +8226,11 @@ class _BillsManagementScreenState
     Color statusColor,
     Color statusBackground,
   ) {
+    final rentalLocation =
+        (bill['rentalLocation'] ??
+                'N/A')
+            .toString();
+
     return Column(
       crossAxisAlignment:
           CrossAxisAlignment.start,
@@ -5411,15 +8249,19 @@ class _BillsManagementScreenState
                 borderRadius:
                     BorderRadius.circular(13),
               ),
-              child: const Icon(
+              child:
+                  const Icon(
                 Icons.receipt_long_rounded,
                 color: bronzeDark,
                 size: 22,
               ),
             ),
-            const SizedBox(width: 11),
+            const SizedBox(
+              width: 11,
+            ),
             Expanded(
-              child: Column(
+              child:
+                  Column(
                 crossAxisAlignment:
                     CrossAxisAlignment.start,
                 children: [
@@ -5436,7 +8278,9 @@ class _BillsManagementScreenState
                           FontWeight.w800,
                     ),
                   ),
-                  const SizedBox(height: 3),
+                  const SizedBox(
+                    height: 3,
+                  ),
                   Text(
                     contact,
                     style:
@@ -5448,7 +8292,9 @@ class _BillsManagementScreenState
                 ],
               ),
             ),
-            const SizedBox(width: 8),
+            const SizedBox(
+              width: 8,
+            ),
             _statusChip(
               status,
               statusColor,
@@ -5457,21 +8303,26 @@ class _BillsManagementScreenState
           ],
         ),
 
-        const SizedBox(height: 14),
+        const SizedBox(
+          height: 14,
+        ),
 
         Container(
           width: double.infinity,
           padding:
               const EdgeInsets.all(13),
-          decoration: BoxDecoration(
+          decoration:
+              BoxDecoration(
             color: background,
             borderRadius:
                 BorderRadius.circular(14),
-            border: Border.all(
+            border:
+                Border.all(
               color: border,
             ),
           ),
-          child: Column(
+          child:
+              Column(
             children: [
               _mobileInfoTile(
                 Icons.confirmation_number_outlined,
@@ -5489,6 +8340,11 @@ class _BillsManagementScreenState
                 '$dateFrom → $dateTill',
               ),
               _mobileInfoTile(
+                Icons.location_on_outlined,
+                'Rental Location',
+                rentalLocation,
+              ),
+              _mobileInfoTile(
                 Icons.payments_outlined,
                 'Total Bill',
                 total,
@@ -5499,11 +8355,14 @@ class _BillsManagementScreenState
           ),
         ),
 
-        const SizedBox(height: 12),
+        const SizedBox(
+          height: 12,
+        ),
 
         SizedBox(
           width: double.infinity,
-          child: _previewButton(bill),
+          child:
+              _previewButton(bill),
         ),
       ],
     );
@@ -5529,21 +8388,26 @@ class _BillsManagementScreenState
             borderRadius:
                 BorderRadius.circular(12),
           ),
-          child: const Icon(
+          child:
+              const Icon(
             Icons.person_outline_rounded,
             color: bronzeDark,
             size: 22,
           ),
         ),
-        const SizedBox(width: 10),
+        const SizedBox(
+          width: 10,
+        ),
         Expanded(
-          child: Column(
+          child:
+              Column(
             crossAxisAlignment:
                 CrossAxisAlignment.start,
             children: [
               const Text(
                 'CUSTOMER',
-                style: TextStyle(
+                style:
+                    TextStyle(
                   color: mutedText,
                   fontSize: 9,
                   fontWeight:
@@ -5551,7 +8415,9 @@ class _BillsManagementScreenState
                   letterSpacing: .5,
                 ),
               ),
-              const SizedBox(height: 3),
+              const SizedBox(
+                height: 3,
+              ),
               Text(
                 name,
                 maxLines: 1,
@@ -5565,7 +8431,9 @@ class _BillsManagementScreenState
                       FontWeight.w800,
                 ),
               ),
-              const SizedBox(height: 2),
+              const SizedBox(
+                height: 2,
+              ),
               Text(
                 contact,
                 maxLines: 1,
@@ -5598,7 +8466,8 @@ class _BillsManagementScreenState
           const EdgeInsets.symmetric(
         horizontal: 7,
       ),
-      child: Column(
+      child:
+          Column(
         crossAxisAlignment:
             CrossAxisAlignment.start,
         children: [
@@ -5613,7 +8482,9 @@ class _BillsManagementScreenState
               letterSpacing: .3,
             ),
           ),
-          const SizedBox(height: 5),
+          const SizedBox(
+            height: 5,
+          ),
           Text(
             value,
             maxLines: maxLines,
@@ -5642,13 +8513,15 @@ class _BillsManagementScreenState
           const EdgeInsets.only(
         bottom: 8,
       ),
-      child: Row(
+      child:
+          Row(
         crossAxisAlignment:
             CrossAxisAlignment.start,
         children: [
           SizedBox(
             width: 105,
-            child: Text(
+            child:
+                Text(
               label,
               style:
                   const TextStyle(
@@ -5660,9 +8533,11 @@ class _BillsManagementScreenState
             ),
           ),
           Expanded(
-            child: Text(
+            child:
+                Text(
               value,
-              style: TextStyle(
+              style:
+                  TextStyle(
                 color: bold
                     ? bronzeDark
                     : darkBrown,
@@ -5698,13 +8573,16 @@ class _BillsManagementScreenState
           last
               ? null
               : const BoxDecoration(
-                  border: Border(
-                    bottom: BorderSide(
+                  border:
+                      Border(
+                    bottom:
+                        BorderSide(
                       color: border,
                     ),
                   ),
                 ),
-      child: Row(
+      child:
+          Row(
         crossAxisAlignment:
             CrossAxisAlignment.start,
         children: [
@@ -5713,10 +8591,13 @@ class _BillsManagementScreenState
             color: bronze,
             size: 17,
           ),
-          const SizedBox(width: 8),
+          const SizedBox(
+            width: 8,
+          ),
           SizedBox(
             width: 92,
-            child: Text(
+            child:
+                Text(
               label,
               style:
                   const TextStyle(
@@ -5728,11 +8609,13 @@ class _BillsManagementScreenState
             ),
           ),
           Expanded(
-            child: Text(
+            child:
+                Text(
               value,
               textAlign:
                   TextAlign.right,
-              style: TextStyle(
+              style:
+                  TextStyle(
                 color: bold
                     ? bronzeDark
                     : darkBrown,
@@ -5765,15 +8648,18 @@ class _BillsManagementScreenState
       ),
       decoration:
           BoxDecoration(
-        color: backgroundColor,
+        color:
+            backgroundColor,
         borderRadius:
             BorderRadius.circular(30),
-        border: Border.all(
+        border:
+            Border.all(
           color:
               color.withOpacity(.18),
         ),
       ),
-      child: Row(
+      child:
+          Row(
         mainAxisSize:
             MainAxisSize.min,
         children: [
@@ -5782,10 +8668,13 @@ class _BillsManagementScreenState
             color: color,
             size: 13,
           ),
-          const SizedBox(width: 5),
+          const SizedBox(
+            width: 5,
+          ),
           Text(
             status.toUpperCase(),
-            style: TextStyle(
+            style:
+                TextStyle(
               color: color,
               fontSize: 9,
               fontWeight:
@@ -5808,16 +8697,20 @@ class _BillsManagementScreenState
     return ElevatedButton.icon(
       onPressed: () =>
           _openBillPreview(bill),
-      icon: const Icon(
+      icon:
+          const Icon(
         Icons.visibility_rounded,
         size: 17,
       ),
-      label: const Text(
+      label:
+          const Text(
         'Preview Bill',
       ),
-      style: ElevatedButton.styleFrom(
+      style:
+          ElevatedButton.styleFrom(
         backgroundColor: bronze,
-        foregroundColor: Colors.white,
+        foregroundColor:
+            Colors.white,
         elevation: 0,
         padding:
             const EdgeInsets.symmetric(
@@ -5844,7 +8737,8 @@ class _BillsManagementScreenState
             .isNotEmpty;
 
     return Center(
-      child: SingleChildScrollView(
+      child:
+          SingleChildScrollView(
         padding:
             const EdgeInsets.all(30),
         child: Container(
@@ -5859,11 +8753,13 @@ class _BillsManagementScreenState
             color: surface,
             borderRadius:
                 BorderRadius.circular(22),
-            border: Border.all(
+            border:
+                Border.all(
               color: border,
             ),
           ),
-          child: Column(
+          child:
+              Column(
             mainAxisSize:
                 MainAxisSize.min,
             children: [
@@ -5874,16 +8770,20 @@ class _BillsManagementScreenState
                     BoxDecoration(
                   color:
                       bronzeLight.withOpacity(.55),
-                  shape: BoxShape.circle,
+                  shape:
+                      BoxShape.circle,
                 ),
-                child: const Icon(
+                child:
+                    const Icon(
                   Icons
                       .receipt_long_outlined,
                   size: 36,
                   color: bronzeDark,
                 ),
               ),
-              const SizedBox(height: 17),
+              const SizedBox(
+                height: 17,
+              ),
               Text(
                 searching
                     ? 'No exact match found'
@@ -5898,7 +8798,9 @@ class _BillsManagementScreenState
                       FontWeight.w800,
                 ),
               ),
-              const SizedBox(height: 7),
+              const SizedBox(
+                height: 7,
+              ),
               Text(
                 searching
                     ? 'Enter the complete customer name, bill number or CNIC.'
@@ -5923,9 +8825,12 @@ class _BillsManagementScreenState
   // ERROR STATE
   // ============================================================
 
-  Widget _errorState(String error) {
+  Widget _errorState(
+    String error,
+  ) {
     return Center(
-      child: Padding(
+      child:
+          Padding(
         padding:
             const EdgeInsets.all(25),
         child: Container(
@@ -5940,12 +8845,14 @@ class _BillsManagementScreenState
             color: surface,
             borderRadius:
                 BorderRadius.circular(20),
-            border: Border.all(
+            border:
+                Border.all(
               color:
                   const Color(0xFFE6C5C5),
             ),
           ),
-          child: Column(
+          child:
+              Column(
             mainAxisSize:
                 MainAxisSize.min,
             children: [
@@ -5956,7 +8863,9 @@ class _BillsManagementScreenState
                     Color(0xFFB64A4A),
                 size: 45,
               ),
-              const SizedBox(height: 12),
+              const SizedBox(
+                height: 12,
+              ),
               const Text(
                 'Unable to load bills',
                 style:
@@ -5967,7 +8876,9 @@ class _BillsManagementScreenState
                       FontWeight.w800,
                 ),
               ),
-              const SizedBox(height: 8),
+              const SizedBox(
+                height: 8,
+              ),
               Text(
                 error,
                 textAlign:
@@ -6013,18 +8924,32 @@ class BillPreviewScreen
   static const Color darkBrown =
       Color(0xFF2C2119);
 
+  // ============================================================
+  // DOWNLOAD / SHARE
+  // ============================================================
+
   Future<void> _download() async {
     await Printing.sharePdf(
       bytes: pdfBytes,
-      filename: '$billNumber.pdf',
+      filename:
+          '$billNumber.pdf',
     );
   }
 
+  // ============================================================
+  // PRINT
+  // ============================================================
+
   Future<void> _print() async {
     await Printing.layoutPdf(
-      onLayout: (_) async => pdfBytes,
+      onLayout: (_) async =>
+          pdfBytes,
     );
   }
+
+  // ============================================================
+  // BUILD
+  // ============================================================
 
   @override
   Widget build(
@@ -6045,7 +8970,8 @@ class BillPreviewScreen
 
         titleSpacing: 8,
 
-        title: Row(
+        title:
+            Row(
           children: [
             Container(
               width: 38,
@@ -6055,7 +8981,9 @@ class BillPreviewScreen
                 color:
                     bronze.withOpacity(.10),
                 borderRadius:
-                    BorderRadius.circular(11),
+                    BorderRadius.circular(
+                  11,
+                ),
               ),
               child:
                   const Icon(
@@ -6065,9 +8993,14 @@ class BillPreviewScreen
                 size: 20,
               ),
             ),
-            const SizedBox(width: 10),
+
+            const SizedBox(
+              width: 10,
+            ),
+
             Expanded(
-              child: Text(
+              child:
+                  Text(
                 'Bill Preview - $billNumber',
                 maxLines: 1,
                 overflow:
@@ -6088,37 +9021,57 @@ class BillPreviewScreen
           IconButton(
             tooltip:
                 'Download / Save',
-            onPressed: _download,
+            onPressed:
+                _download,
             icon:
                 const Icon(
-              Icons
-                  .download_rounded,
+              Icons.download_rounded,
               color: bronze,
             ),
           ),
+
           IconButton(
             tooltip: 'Print',
-            onPressed: _print,
+            onPressed:
+                _print,
             icon:
                 const Icon(
               Icons.print_rounded,
               color: bronze,
             ),
           ),
-          const SizedBox(width: 5),
+
+          const SizedBox(
+            width: 5,
+          ),
         ],
       ),
 
-      body: Container(
+      // ==========================================================
+      // SAME PDF BYTES ARE SHOWN HERE
+      //
+      // The PDF was generated from the bill document, including:
+      //
+      // rentalLocation
+      //
+      // Therefore Preview / Print / Share all use the same bill.
+      // ==========================================================
+
+      body:
+          Container(
         color: background,
         padding:
             const EdgeInsets.all(8),
-        child: PdfPreview(
+        child:
+            PdfPreview(
           build: (_) async =>
               pdfBytes,
 
-          allowPrinting: true,
-          allowSharing: true,
+          allowPrinting:
+              true,
+
+          allowSharing:
+              true,
 
           canChangePageFormat:
               false,

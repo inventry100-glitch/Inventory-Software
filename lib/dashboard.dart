@@ -292,9 +292,6 @@
 //   }
 // }
 
-
-
-
 // import 'package:flutter/material.dart';
 // import 'package:inventory_management/Screens/add_item.dart';
 // import 'package:inventory_management/Screens/bill_generate.dart';
@@ -772,17 +769,9 @@
 //   }
 // }
 
-
 // // ================================================================
 // // ADMIN DRAWER
 // // ================================================================
-
-
-
-
-
-
-
 
 // import 'package:flutter/material.dart';
 // import 'package:inventory_management/Screens/add_item.dart';
@@ -1487,19 +1476,17 @@
 //   }
 // }
 
-
-
-
-
-
-
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:flutter/material.dart';
+// import 'package:cloud_firestore/cloud_firestore.dart';
+// import 'package:flutter/material.dart';
 import 'package:inventory_management/Screens/add_item.dart';
 import 'package:inventory_management/Screens/bill_generate.dart';
 import 'package:inventory_management/Screens/customers.dart';
 import 'package:inventory_management/Screens/drawer.dart';
 import 'package:inventory_management/Screens/inventory.dart';
+
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/material.dart';
 
 class AdminDashboard extends StatefulWidget {
   const AdminDashboard({super.key});
@@ -1530,8 +1517,26 @@ class _AdminDashboardState extends State<AdminDashboard> {
   // FIRESTORE
   // ============================================================
 
-  final FirebaseFirestore _db =
-      FirebaseFirestore.instance;
+  // final FirebaseFirestore _db =
+  //     FirebaseFirestore.instance;
+
+  final FirebaseFirestore _db = FirebaseFirestore.instance;
+
+  String get _uid {
+    final User? user = FirebaseAuth.instance.currentUser;
+
+    if (user == null) {
+      throw Exception('No user is currently logged in.');
+    }
+
+    return user.uid;
+  }
+
+  CollectionReference<Map<String, dynamic>> _userCollection(
+    String collectionName,
+  ) {
+    return _db.collection('Users').doc(_uid).collection(collectionName);
+  }
 
   // ============================================================
   // COUNTS
@@ -1558,17 +1563,142 @@ class _AdminDashboardState extends State<AdminDashboard> {
   // LOAD DASHBOARD DATA
   // ============================================================
 
+  // Future<void> _loadDashboardData() async {
+  //   try {
+  //     final inventorySnapshot =
+  //         await _db.collection('inventory').get();
+
+  //     final billsSnapshot =
+  //         await _db.collection('bills').get();
+
+  //     // ----------------------------------------------------------
+  //     // INVENTORY
+  //     // ----------------------------------------------------------
+
+  //     int totalItems = 0;
+  //     int rentedItems = 0;
+
+  //     for (final doc in inventorySnapshot.docs) {
+  //       final data = doc.data();
+
+  //       totalItems += _toInt(
+  //         data['totalStock'],
+  //       );
+
+  //       rentedItems += _toInt(
+  //         data['rentedStock'],
+  //       );
+  //     }
+
+  //     // ----------------------------------------------------------
+  //     // CUSTOMERS + ACTIVE BILLS
+  //     // ----------------------------------------------------------
+
+  //     final Set<String> customers = {};
+
+  //     int activeBills = 0;
+
+  //     for (final doc in billsSnapshot.docs) {
+  //       final data = doc.data();
+
+  //       final String customerName =
+  //           (data['customerName'] ?? '')
+  //               .toString()
+  //               .trim();
+
+  //       final String contact =
+  //           (data['contactNumber'] ?? '')
+  //               .toString()
+  //               .trim();
+
+  //       final String cnic =
+  //           (data['cnic'] ?? '')
+  //               .toString()
+  //               .trim();
+
+  //       // --------------------------------------------------------
+  //       // UNIQUE CUSTOMER
+  //       // --------------------------------------------------------
+
+  //       String customerKey = '';
+
+  //       if (contact.isNotEmpty) {
+  //         customerKey = 'contact:$contact';
+  //       } else if (cnic.isNotEmpty) {
+  //         customerKey = 'cnic:$cnic';
+  //       } else if (customerName.isNotEmpty) {
+  //         customerKey =
+  //             'name:${customerName.toLowerCase()}';
+  //       }
+
+  //       if (customerKey.isNotEmpty) {
+  //         customers.add(customerKey);
+  //       }
+
+  //       // --------------------------------------------------------
+  //       // ACTIVE BILL
+  //       // --------------------------------------------------------
+
+  //       final String rentalStatus =
+  //           (data['rentalStatus'] ?? 'rented')
+  //               .toString()
+  //               .toLowerCase()
+  //               .trim();
+
+  //       if (rentalStatus != 'returned' &&
+  //           rentalStatus != 'completed' &&
+  //           rentalStatus != 'cancelled') {
+  //         activeBills++;
+  //       }
+  //     }
+
+  //     if (!mounted) return;
+
+  //     setState(() {
+  //       _totalItems = totalItems;
+  //       _rentedItems = rentedItems;
+  //       _customers = customers.length;
+  //       _activeBills = activeBills;
+  //       _loading = false;
+  //     });
+  //   } catch (e) {
+  //     debugPrint(
+  //       'Dashboard error: $e',
+  //     );
+
+  //     if (!mounted) return;
+
+  //     setState(() {
+  //       _loading = false;
+  //     });
+  //   }
+  // }
+
   Future<void> _loadDashboardData() async {
     try {
-      final inventorySnapshot =
-          await _db.collection('inventory').get();
+      // ==========================================================
+      // USER-SPECIFIC COLLECTIONS
+      // ==========================================================
 
-      final billsSnapshot =
-          await _db.collection('bills').get();
+      final inventoryCollection = _userCollection('inventory');
 
-      // ----------------------------------------------------------
+      final customersCollection = _userCollection('customers');
+
+      final billsCollection = _userCollection('bills');
+
+      // ==========================================================
+      // FETCH USER DATA
+      // ==========================================================
+
+      final inventorySnapshot = await inventoryCollection.get();
+
+      final customersSnapshot = await customersCollection.get();
+
+      final billsSnapshot = await billsCollection.get();
+
+      // ==========================================================
       // INVENTORY
-      // ----------------------------------------------------------
+      // ==========================================================
 
       int totalItems = 0;
       int rentedItems = 0;
@@ -1576,69 +1706,30 @@ class _AdminDashboardState extends State<AdminDashboard> {
       for (final doc in inventorySnapshot.docs) {
         final data = doc.data();
 
-        totalItems += _toInt(
-          data['totalStock'],
-        );
+        totalItems += _toInt(data['totalStock']);
 
-        rentedItems += _toInt(
-          data['rentedStock'],
-        );
+        rentedItems += _toInt(data['rentedStock']);
       }
 
-      // ----------------------------------------------------------
-      // CUSTOMERS + ACTIVE BILLS
-      // ----------------------------------------------------------
+      // ==========================================================
+      // CUSTOMERS
+      // ==========================================================
 
-      final Set<String> customers = {};
+      int customersCount = customersSnapshot.docs.length;
+
+      // ==========================================================
+      // ACTIVE BILLS
+      // ==========================================================
 
       int activeBills = 0;
 
       for (final doc in billsSnapshot.docs) {
         final data = doc.data();
 
-        final String customerName =
-            (data['customerName'] ?? '')
-                .toString()
-                .trim();
-
-        final String contact =
-            (data['contactNumber'] ?? '')
-                .toString()
-                .trim();
-
-        final String cnic =
-            (data['cnic'] ?? '')
-                .toString()
-                .trim();
-
-        // --------------------------------------------------------
-        // UNIQUE CUSTOMER
-        // --------------------------------------------------------
-
-        String customerKey = '';
-
-        if (contact.isNotEmpty) {
-          customerKey = 'contact:$contact';
-        } else if (cnic.isNotEmpty) {
-          customerKey = 'cnic:$cnic';
-        } else if (customerName.isNotEmpty) {
-          customerKey =
-              'name:${customerName.toLowerCase()}';
-        }
-
-        if (customerKey.isNotEmpty) {
-          customers.add(customerKey);
-        }
-
-        // --------------------------------------------------------
-        // ACTIVE BILL
-        // --------------------------------------------------------
-
-        final String rentalStatus =
-            (data['rentalStatus'] ?? 'rented')
-                .toString()
-                .toLowerCase()
-                .trim();
+        final String rentalStatus = (data['rentalStatus'] ?? 'rented')
+            .toString()
+            .toLowerCase()
+            .trim();
 
         if (rentalStatus != 'returned' &&
             rentalStatus != 'completed' &&
@@ -1647,19 +1738,21 @@ class _AdminDashboardState extends State<AdminDashboard> {
         }
       }
 
+      // ==========================================================
+      // UPDATE UI
+      // ==========================================================
+
       if (!mounted) return;
 
       setState(() {
         _totalItems = totalItems;
         _rentedItems = rentedItems;
-        _customers = customers.length;
+        _customers = customersCount;
         _activeBills = activeBills;
         _loading = false;
       });
     } catch (e) {
-      debugPrint(
-        'Dashboard error: $e',
-      );
+      debugPrint('Dashboard error: $e');
 
       if (!mounted) return;
 
@@ -1686,10 +1779,7 @@ class _AdminDashboardState extends State<AdminDashboard> {
       return value.toInt();
     }
 
-    return int.tryParse(
-          value?.toString() ?? '',
-        ) ??
-        0;
+    return int.tryParse(value?.toString() ?? '') ?? 0;
   }
 
   // ============================================================
@@ -1711,10 +1801,7 @@ class _AdminDashboardState extends State<AdminDashboard> {
   void _openInventory() {
     Navigator.push(
       context,
-      MaterialPageRoute(
-        builder: (context) =>
-            const InventoryScreen(),
-      ),
+      MaterialPageRoute(builder: (context) => const InventoryScreen()),
     ).then((_) {
       _loadDashboardData();
     });
@@ -1723,10 +1810,7 @@ class _AdminDashboardState extends State<AdminDashboard> {
   void _openCustomers() {
     Navigator.push(
       context,
-      MaterialPageRoute(
-        builder: (context) =>
-            const CustomersScreen(),
-      ),
+      MaterialPageRoute(builder: (context) => const CustomersScreen()),
     ).then((_) {
       _loadDashboardData();
     });
@@ -1735,10 +1819,7 @@ class _AdminDashboardState extends State<AdminDashboard> {
   void _openBills() {
     Navigator.push(
       context,
-      MaterialPageRoute(
-        builder: (context) =>
-            const BillScreen(),
-      ),
+      MaterialPageRoute(builder: (context) => const BillScreen()),
     ).then((_) {
       _loadDashboardData();
     });
@@ -1756,7 +1837,6 @@ class _AdminDashboardState extends State<AdminDashboard> {
       // ==========================================================
       // APP BAR
       // ==========================================================
-
       appBar: AppBar(
         backgroundColor: background,
         surfaceTintColor: Colors.transparent,
@@ -1766,9 +1846,7 @@ class _AdminDashboardState extends State<AdminDashboard> {
         leading: Builder(
           builder: (context) {
             return Padding(
-              padding: const EdgeInsets.only(
-                left: 8,
-              ),
+              padding: const EdgeInsets.only(left: 8),
               child: IconButton(
                 tooltip: 'Menu',
                 icon: const Icon(
@@ -1795,61 +1873,42 @@ class _AdminDashboardState extends State<AdminDashboard> {
           ),
         ),
 
-        actions: [
-          Container(
-            margin: const EdgeInsets.only(
-              right: 14,
-              top: 7,
-              bottom: 7,
-            ),
-            decoration: BoxDecoration(
-              color: surface,
-              borderRadius:
-                  BorderRadius.circular(13),
-              border: Border.all(
-                color: border,
-              ),
-            ),
-            child: IconButton(
-              tooltip: 'Refresh',
-              icon: Icon(
-                _loading
-                    ? Icons.sync_rounded
-                    : Icons.refresh_rounded,
-                color: mediumBrown,
-                size: 21,
-              ),
-              onPressed:
-                  _loading ? null : _refreshDashboard,
-            ),
-          ),
-        ],
+        // actions: [
+        //   Container(
+        //     margin: const EdgeInsets.only(right: 14, top: 7, bottom: 7),
+        //     decoration: BoxDecoration(
+        //       color: surface,
+        //       borderRadius: BorderRadius.circular(13),
+        //       border: Border.all(color: border),
+        //     ),
+        //     child: IconButton(
+        //       tooltip: 'Refresh',
+        //       icon: Icon(
+        //         _loading ? Icons.sync_rounded : Icons.refresh_rounded,
+        //         color: mediumBrown,
+        //         size: 21,
+        //       ),
+        //       onPressed: _loading ? null : _refreshDashboard,
+        //     ),
+        //   ),
+        // ],
       ),
 
       // ==========================================================
       // DRAWER
       // ==========================================================
-
-      drawer: const AdminDrawer(
-        selectedIndex: 0,
-      ),
+      drawer: const AdminDrawer(selectedIndex: 0),
 
       // ==========================================================
       // BODY
       // ==========================================================
-
       body: SafeArea(
         child: LayoutBuilder(
-          builder: (
-            context,
-            constraints,
-          ) {
-            final bool isMobile =
-                constraints.maxWidth < 600;
+          builder: (context, constraints) {
+            final bool isMobile = constraints.maxWidth < 600;
 
             final bool isTablet =
-                constraints.maxWidth >= 600 &&
-                    constraints.maxWidth < 1000;
+                constraints.maxWidth >= 600 && constraints.maxWidth < 1000;
 
             return RefreshIndicator(
               color: bronze,
@@ -1857,112 +1916,82 @@ class _AdminDashboardState extends State<AdminDashboard> {
               onRefresh: _refreshDashboard,
 
               child: SingleChildScrollView(
-                physics:
-                    const AlwaysScrollableScrollPhysics(
-                  parent:
-                      BouncingScrollPhysics(),
+                physics: const AlwaysScrollableScrollPhysics(
+                  parent: BouncingScrollPhysics(),
                 ),
 
                 padding: EdgeInsets.fromLTRB(
                   isMobile
                       ? 16
                       : isTablet
-                          ? 28
-                          : 42,
+                      ? 28
+                      : 42,
                   10,
                   isMobile
                       ? 16
                       : isTablet
-                          ? 28
-                          : 42,
+                      ? 28
+                      : 42,
                   30,
                 ),
 
                 child: Center(
                   child: ConstrainedBox(
-                    constraints:
-                        const BoxConstraints(
-                      maxWidth: 1250,
-                    ),
+                    constraints: const BoxConstraints(maxWidth: 1250),
 
                     child: Column(
-                      crossAxisAlignment:
-                          CrossAxisAlignment.start,
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-
                         // ==================================================
                         // WELCOME
                         // ==================================================
+                        _buildWelcomeSection(isMobile: isMobile),
 
-                        _buildWelcomeSection(
-                          isMobile: isMobile,
-                        ),
-
-                        const SizedBox(
-                          height: 24,
-                        ),
+                        const SizedBox(height: 24),
 
                         // ==================================================
                         // QUICK ACTIONS
                         // ==================================================
+                        _buildQuickActions(context),
 
-                        _buildQuickActions(
-                          context,
-                        ),
-
-                        const SizedBox(
-                          height: 30,
-                        ),
+                        const SizedBox(height: 30),
 
                         // ==================================================
                         // OVERVIEW HEADING
                         // ==================================================
-
                         const Text(
                           'Overview',
                           style: TextStyle(
                             color: darkBrown,
                             fontSize: 21,
-                            fontWeight:
-                                FontWeight.w900,
+                            fontWeight: FontWeight.w900,
                           ),
                         ),
 
-                        const SizedBox(
-                          height: 4,
-                        ),
+                        const SizedBox(height: 4),
 
                         const Text(
                           'A quick look at your business.',
                           style: TextStyle(
                             color: mutedText,
                             fontSize: 12,
-                            fontWeight:
-                                FontWeight.w500,
+                            fontWeight: FontWeight.w500,
                           ),
                         ),
 
-                        const SizedBox(
-                          height: 15,
-                        ),
+                        const SizedBox(height: 15),
 
                         // ==================================================
                         // STAT CARDS
                         // ==================================================
-
                         _buildStatsSection(),
 
-                        const SizedBox(
-                          height: 28,
-                        ),
+                        const SizedBox(height: 28),
 
                         // ==================================================
                         // INVENTORY SUMMARY
                         // ==================================================
-
-                        _buildInventoryOverview(
-                          isMobile: isMobile,
-                        ),
+                        _buildInventoryOverview(isMobile: isMobile),
                       ],
                     ),
                   ),
@@ -1979,26 +2008,18 @@ class _AdminDashboardState extends State<AdminDashboard> {
   // WELCOME
   // ================================================================
 
-  Widget _buildWelcomeSection({
-    required bool isMobile,
-  }) {
+  Widget _buildWelcomeSection({required bool isMobile}) {
     return Container(
       width: double.infinity,
-      padding: EdgeInsets.all(
-        isMobile ? 18 : 23,
-      ),
+      padding: EdgeInsets.all(isMobile ? 18 : 23),
 
       decoration: BoxDecoration(
         color: surface,
-        borderRadius:
-            BorderRadius.circular(22),
-        border: Border.all(
-          color: border,
-        ),
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(color: border),
         boxShadow: [
           BoxShadow(
-            color: const Color(0xFF6D4C32)
-                .withOpacity(0.045),
+            color: const Color(0xFF6D4C32).withOpacity(0.045),
             blurRadius: 20,
             offset: const Offset(0, 7),
           ),
@@ -2012,15 +2033,8 @@ class _AdminDashboardState extends State<AdminDashboard> {
             width: isMobile ? 48 : 54,
 
             decoration: BoxDecoration(
-              gradient:
-                  const LinearGradient(
-                colors: [
-                  bronze,
-                  bronzeDark,
-                ],
-              ),
-              borderRadius:
-                  BorderRadius.circular(16),
+              gradient: const LinearGradient(colors: [bronze, bronzeDark]),
+              borderRadius: BorderRadius.circular(16),
             ),
 
             child: const Icon(
@@ -2034,16 +2048,14 @@ class _AdminDashboardState extends State<AdminDashboard> {
 
           Expanded(
             child: Column(
-              crossAxisAlignment:
-                  CrossAxisAlignment.start,
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 const Text(
                   'WELCOME BACK',
                   style: TextStyle(
                     color: bronze,
                     fontSize: 10,
-                    fontWeight:
-                        FontWeight.w900,
+                    fontWeight: FontWeight.w900,
                     letterSpacing: 1.4,
                   ),
                 ),
@@ -2053,14 +2065,11 @@ class _AdminDashboardState extends State<AdminDashboard> {
                 Text(
                   'Admin Dashboard',
                   maxLines: 1,
-                  overflow:
-                      TextOverflow.ellipsis,
+                  overflow: TextOverflow.ellipsis,
                   style: TextStyle(
                     color: darkBrown,
-                    fontSize:
-                        isMobile ? 23 : 28,
-                    fontWeight:
-                        FontWeight.w900,
+                    fontSize: isMobile ? 23 : 28,
+                    fontWeight: FontWeight.w900,
                   ),
                 ),
 
@@ -2069,13 +2078,8 @@ class _AdminDashboardState extends State<AdminDashboard> {
                 const Text(
                   'Manage your inventory, customers and rental bills.',
                   maxLines: 2,
-                  overflow:
-                      TextOverflow.ellipsis,
-                  style: TextStyle(
-                    color: mutedText,
-                    fontSize: 12,
-                    height: 1.4,
-                  ),
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(color: mutedText, fontSize: 12, height: 1.4),
                 ),
               ],
             ),
@@ -2089,12 +2093,9 @@ class _AdminDashboardState extends State<AdminDashboard> {
   // QUICK ACTIONS
   // ================================================================
 
-  Widget _buildQuickActions(
-    BuildContext context,
-  ) {
+  Widget _buildQuickActions(BuildContext context) {
     return Column(
-      crossAxisAlignment:
-          CrossAxisAlignment.start,
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         const Text(
           'Quick Actions',
@@ -2109,10 +2110,7 @@ class _AdminDashboardState extends State<AdminDashboard> {
 
         const Text(
           'Start a common task quickly.',
-          style: TextStyle(
-            color: mutedText,
-            fontSize: 12,
-          ),
+          style: TextStyle(color: mutedText, fontSize: 12),
         ),
 
         const SizedBox(height: 15),
@@ -2123,14 +2121,12 @@ class _AdminDashboardState extends State<AdminDashboard> {
               child: _quickActionCard(
                 icon: Icons.add_box_rounded,
                 title: 'Add Item',
-                subtitle:
-                    'Add new inventory',
+                subtitle: 'Add new inventory',
                 onTap: () {
                   Navigator.push(
                     context,
                     MaterialPageRoute(
-                      builder: (context) =>
-                          const AddItemScreen(),
+                      builder: (context) => const AddItemScreen(),
                     ),
                   ).then((_) {
                     _loadDashboardData();
@@ -2143,18 +2139,13 @@ class _AdminDashboardState extends State<AdminDashboard> {
 
             Expanded(
               child: _quickActionCard(
-                icon:
-                    Icons.receipt_long_rounded,
+                icon: Icons.receipt_long_rounded,
                 title: 'New Bill',
-                subtitle:
-                    'Create rental bill',
+                subtitle: 'Create rental bill',
                 onTap: () {
                   Navigator.push(
                     context,
-                    MaterialPageRoute(
-                      builder: (context) =>
-                          const BillScreen(),
-                    ),
+                    MaterialPageRoute(builder: (context) => const BillScreen()),
                   ).then((_) {
                     _loadDashboardData();
                   });
@@ -2179,32 +2170,23 @@ class _AdminDashboardState extends State<AdminDashboard> {
   }) {
     return Material(
       color: surface,
-      borderRadius:
-          BorderRadius.circular(18),
+      borderRadius: BorderRadius.circular(18),
 
       child: InkWell(
         onTap: onTap,
-        borderRadius:
-            BorderRadius.circular(18),
+        borderRadius: BorderRadius.circular(18),
 
         child: Container(
-          padding:
-              const EdgeInsets.all(15),
+          padding: const EdgeInsets.all(15),
 
           decoration: BoxDecoration(
-            borderRadius:
-                BorderRadius.circular(18),
-            border: Border.all(
-              color: border,
-            ),
+            borderRadius: BorderRadius.circular(18),
+            border: Border.all(color: border),
             boxShadow: [
               BoxShadow(
-                color:
-                    const Color(0xFF6D4C32)
-                        .withOpacity(0.055),
+                color: const Color(0xFF6D4C32).withOpacity(0.055),
                 blurRadius: 16,
-                offset:
-                    const Offset(0, 6),
+                offset: const Offset(0, 6),
               ),
             ],
           ),
@@ -2215,46 +2197,30 @@ class _AdminDashboardState extends State<AdminDashboard> {
                 height: 45,
                 width: 45,
 
-                decoration:
-                    BoxDecoration(
-                  gradient:
-                      const LinearGradient(
-                    colors: [
-                      Color(0xFFF0DFCA),
-                      Color(0xFFE4C8A8),
-                    ],
+                decoration: BoxDecoration(
+                  gradient: const LinearGradient(
+                    colors: [Color(0xFFF0DFCA), Color(0xFFE4C8A8)],
                   ),
-                  borderRadius:
-                      BorderRadius.circular(
-                    13,
-                  ),
+                  borderRadius: BorderRadius.circular(13),
                 ),
 
-                child: Icon(
-                  icon,
-                  color: bronzeDark,
-                  size: 22,
-                ),
+                child: Icon(icon, color: bronzeDark, size: 22),
               ),
 
               const SizedBox(width: 11),
 
               Expanded(
                 child: Column(
-                  crossAxisAlignment:
-                      CrossAxisAlignment.start,
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
                       title,
                       maxLines: 1,
-                      overflow:
-                          TextOverflow.ellipsis,
-                      style:
-                          const TextStyle(
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
                         color: darkBrown,
                         fontSize: 13,
-                        fontWeight:
-                            FontWeight.w900,
+                        fontWeight: FontWeight.w900,
                       ),
                     ),
 
@@ -2263,14 +2229,11 @@ class _AdminDashboardState extends State<AdminDashboard> {
                     Text(
                       subtitle,
                       maxLines: 1,
-                      overflow:
-                          TextOverflow.ellipsis,
-                      style:
-                          const TextStyle(
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
                         color: mutedText,
                         fontSize: 10,
-                        fontWeight:
-                            FontWeight.w500,
+                        fontWeight: FontWeight.w500,
                       ),
                     ),
                   ],
@@ -2281,14 +2244,9 @@ class _AdminDashboardState extends State<AdminDashboard> {
                 height: 29,
                 width: 29,
 
-                decoration:
-                    BoxDecoration(
-                  color:
-                      const Color(0xFFF4EADF),
-                  borderRadius:
-                      BorderRadius.circular(
-                    9,
-                  ),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF4EADF),
+                  borderRadius: BorderRadius.circular(9),
                 ),
 
                 child: const Icon(
@@ -2310,16 +2268,10 @@ class _AdminDashboardState extends State<AdminDashboard> {
 
   Widget _buildStatsSection() {
     return LayoutBuilder(
-      builder: (
-        context,
-        constraints,
-      ) {
+      builder: (context, constraints) {
         const double spacing = 12;
 
-        final double cardWidth =
-            (constraints.maxWidth -
-                    spacing) /
-                2;
+        final double cardWidth = (constraints.maxWidth - spacing) / 2;
 
         return Wrap(
           spacing: spacing,
@@ -2328,18 +2280,14 @@ class _AdminDashboardState extends State<AdminDashboard> {
             // --------------------------------------------------------
             // TOTAL ITEMS
             // --------------------------------------------------------
-
             SizedBox(
               width: cardWidth,
               child: _detailStatCard(
-                icon:
-                    Icons.inventory_2_outlined,
+                icon: Icons.inventory_2_outlined,
                 title: 'Total Items',
                 value: _totalItems,
-                description:
-                    'All inventory stock',
-                iconBackground:
-                    const Color(0xFFF0E2D1),
+                description: 'All inventory stock',
+                iconBackground: const Color(0xFFF0E2D1),
                 onDetails: _openInventory,
               ),
             ),
@@ -2347,18 +2295,14 @@ class _AdminDashboardState extends State<AdminDashboard> {
             // --------------------------------------------------------
             // RENTED ITEMS
             // --------------------------------------------------------
-
             SizedBox(
               width: cardWidth,
               child: _detailStatCard(
-                icon:
-                    Icons.shopping_bag_outlined,
+                icon: Icons.shopping_bag_outlined,
                 title: 'Rented Items',
                 value: _rentedItems,
-                description:
-                    'Currently rented units',
-                iconBackground:
-                    const Color(0xFFE8D6C0),
+                description: 'Currently rented units',
+                iconBackground: const Color(0xFFE8D6C0),
                 onDetails: _openInventory,
               ),
             ),
@@ -2366,18 +2310,14 @@ class _AdminDashboardState extends State<AdminDashboard> {
             // --------------------------------------------------------
             // CUSTOMERS
             // --------------------------------------------------------
-
             SizedBox(
               width: cardWidth,
               child: _detailStatCard(
-                icon:
-                    Icons.people_outline_rounded,
+                icon: Icons.people_outline_rounded,
                 title: 'Customers',
                 value: _customers,
-                description:
-                    'Registered customers',
-                iconBackground:
-                    const Color(0xFFEBDDD0),
+                description: 'Registered customers',
+                iconBackground: const Color(0xFFEBDDD0),
                 onDetails: _openCustomers,
               ),
             ),
@@ -2385,18 +2325,14 @@ class _AdminDashboardState extends State<AdminDashboard> {
             // --------------------------------------------------------
             // ACTIVE BILLS
             // --------------------------------------------------------
-
             SizedBox(
               width: cardWidth,
               child: _detailStatCard(
-                icon:
-                    Icons.receipt_long_outlined,
+                icon: Icons.receipt_long_outlined,
                 title: 'Active Rentals',
                 value: _activeBills,
-                description:
-                    'Bills not yet returned',
-                iconBackground:
-                    const Color(0xFFF1E5D6),
+                description: 'Bills not yet returned',
+                iconBackground: const Color(0xFFF1E5D6),
                 onDetails: _openCustomers,
               ),
             ),
@@ -2419,61 +2355,39 @@ class _AdminDashboardState extends State<AdminDashboard> {
     required VoidCallback onDetails,
   }) {
     return Container(
-      padding:
-          const EdgeInsets.fromLTRB(
-        16,
-        16,
-        16,
-        13,
-      ),
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 13),
 
       decoration: BoxDecoration(
         color: surface,
-        borderRadius:
-            BorderRadius.circular(19),
-        border: Border.all(
-          color: border,
-        ),
+        borderRadius: BorderRadius.circular(19),
+        border: Border.all(color: border),
         boxShadow: [
           BoxShadow(
-            color:
-                const Color(0xFF6D4C32)
-                    .withOpacity(0.045),
+            color: const Color(0xFF6D4C32).withOpacity(0.045),
             blurRadius: 16,
-            offset:
-                const Offset(0, 6),
+            offset: const Offset(0, 6),
           ),
         ],
       ),
 
       child: Column(
-        crossAxisAlignment:
-            CrossAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           // --------------------------------------------------------
           // TOP
           // --------------------------------------------------------
-
           Row(
             children: [
               Container(
                 height: 42,
                 width: 42,
 
-                decoration:
-                    BoxDecoration(
+                decoration: BoxDecoration(
                   color: iconBackground,
-                  borderRadius:
-                      BorderRadius.circular(
-                    13,
-                  ),
+                  borderRadius: BorderRadius.circular(13),
                 ),
 
-                child: Icon(
-                  icon,
-                  color: bronzeDark,
-                  size: 21,
-                ),
+                child: Icon(icon, color: bronzeDark, size: 21),
               ),
 
               const Spacer(),
@@ -2481,8 +2395,7 @@ class _AdminDashboardState extends State<AdminDashboard> {
               Container(
                 height: 6,
                 width: 6,
-                decoration:
-                    const BoxDecoration(
+                decoration: const BoxDecoration(
                   color: bronze,
                   shape: BoxShape.circle,
                 ),
@@ -2495,12 +2408,10 @@ class _AdminDashboardState extends State<AdminDashboard> {
           // --------------------------------------------------------
           // TITLE
           // --------------------------------------------------------
-
           Text(
             title,
             maxLines: 1,
-            overflow:
-                TextOverflow.ellipsis,
+            overflow: TextOverflow.ellipsis,
             style: const TextStyle(
               color: mutedText,
               fontSize: 11,
@@ -2513,41 +2424,26 @@ class _AdminDashboardState extends State<AdminDashboard> {
           // --------------------------------------------------------
           // VALUE
           // --------------------------------------------------------
-
           AnimatedSwitcher(
-            duration:
-                const Duration(
-              milliseconds: 250,
-            ),
+            duration: const Duration(milliseconds: 250),
 
             child: _loading
                 ? Container(
-                    key: const ValueKey(
-                      'loading',
-                    ),
+                    key: const ValueKey('loading'),
                     height: 32,
                     width: 52,
-                    decoration:
-                        BoxDecoration(
-                      color:
-                          const Color(
-                        0xFFEDE3D8,
-                      ),
-                      borderRadius:
-                          BorderRadius.circular(
-                        7,
-                      ),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFEDE3D8),
+                      borderRadius: BorderRadius.circular(7),
                     ),
                   )
                 : Text(
                     value.toString(),
                     key: ValueKey(value),
-                    style:
-                        const TextStyle(
+                    style: const TextStyle(
                       color: darkBrown,
                       fontSize: 28,
-                      fontWeight:
-                          FontWeight.w900,
+                      fontWeight: FontWeight.w900,
                       letterSpacing: -0.7,
                     ),
                   ),
@@ -2558,8 +2454,7 @@ class _AdminDashboardState extends State<AdminDashboard> {
           Text(
             description,
             maxLines: 1,
-            overflow:
-                TextOverflow.ellipsis,
+            overflow: TextOverflow.ellipsis,
             style: const TextStyle(
               color: mutedText,
               fontSize: 9,
@@ -2572,37 +2467,29 @@ class _AdminDashboardState extends State<AdminDashboard> {
           // --------------------------------------------------------
           // SEE DETAILS
           // --------------------------------------------------------
-
           InkWell(
             onTap: onDetails,
-            borderRadius:
-                BorderRadius.circular(8),
+            borderRadius: BorderRadius.circular(8),
 
             child: Padding(
-              padding:
-                  const EdgeInsets.symmetric(
-                vertical: 4,
-              ),
+              padding: const EdgeInsets.symmetric(vertical: 4),
 
               child: Row(
-                mainAxisSize:
-                    MainAxisSize.min,
+                mainAxisSize: MainAxisSize.min,
                 children: [
                   const Text(
                     'See Details',
                     style: TextStyle(
                       color: bronzeDark,
                       fontSize: 10,
-                      fontWeight:
-                          FontWeight.w800,
+                      fontWeight: FontWeight.w800,
                     ),
                   ),
 
                   const SizedBox(width: 4),
 
                   const Icon(
-                    Icons
-                        .arrow_forward_rounded,
+                    Icons.arrow_forward_rounded,
                     color: bronze,
                     size: 14,
                   ),
@@ -2619,49 +2506,33 @@ class _AdminDashboardState extends State<AdminDashboard> {
   // INVENTORY OVERVIEW
   // ================================================================
 
-  Widget _buildInventoryOverview({
-    required bool isMobile,
-  }) {
-    final int available =
-        _totalItems - _rentedItems;
+  Widget _buildInventoryOverview({required bool isMobile}) {
+    final int available = _totalItems - _rentedItems;
 
     return Container(
       width: double.infinity,
-      padding: EdgeInsets.all(
-        isMobile ? 18 : 22,
-      ),
+      padding: EdgeInsets.all(isMobile ? 18 : 22),
 
       decoration: BoxDecoration(
-        gradient:
-            const LinearGradient(
-          colors: [
-            Color(0xFF5D3D24),
-            Color(0xFF7B5432),
-          ],
-          begin:
-              Alignment.topLeft,
-          end:
-              Alignment.bottomRight,
+        gradient: const LinearGradient(
+          colors: [Color(0xFF5D3D24), Color(0xFF7B5432)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
         ),
 
-        borderRadius:
-            BorderRadius.circular(21),
+        borderRadius: BorderRadius.circular(21),
 
         boxShadow: [
           BoxShadow(
-            color:
-                const Color(0xFF6D4C32)
-                    .withOpacity(0.16),
+            color: const Color(0xFF6D4C32).withOpacity(0.16),
             blurRadius: 20,
-            offset:
-                const Offset(0, 8),
+            offset: const Offset(0, 8),
           ),
         ],
       ),
 
       child: Column(
-        crossAxisAlignment:
-            CrossAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
@@ -2669,14 +2540,9 @@ class _AdminDashboardState extends State<AdminDashboard> {
                 height: 44,
                 width: 44,
 
-                decoration:
-                    BoxDecoration(
-                  color: Colors.white
-                      .withOpacity(0.13),
-                  borderRadius:
-                      BorderRadius.circular(
-                    13,
-                  ),
+                decoration: BoxDecoration(
+                  color: Colors.white.withOpacity(0.13),
+                  borderRadius: BorderRadius.circular(13),
                 ),
 
                 child: const Icon(
@@ -2690,18 +2556,14 @@ class _AdminDashboardState extends State<AdminDashboard> {
 
               const Expanded(
                 child: Column(
-                  crossAxisAlignment:
-                      CrossAxisAlignment.start,
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
                       'Inventory Overview',
-                      style:
-                          TextStyle(
-                        color:
-                            Colors.white,
+                      style: TextStyle(
+                        color: Colors.white,
                         fontSize: 15,
-                        fontWeight:
-                            FontWeight.w900,
+                        fontWeight: FontWeight.w900,
                       ),
                     ),
 
@@ -2709,14 +2571,7 @@ class _AdminDashboardState extends State<AdminDashboard> {
 
                     Text(
                       'Current stock availability',
-                      style:
-                          TextStyle(
-                        color:
-                            Color(
-                          0xFFE8D9CA,
-                        ),
-                        fontSize: 11,
-                      ),
+                      style: TextStyle(color: Color(0xFFE8D9CA), fontSize: 11),
                     ),
                   ],
                 ),
@@ -2728,40 +2583,26 @@ class _AdminDashboardState extends State<AdminDashboard> {
 
           Row(
             children: [
-              Expanded(
-                child: _overviewValue(
-                  'Total',
-                  _totalItems,
-                ),
-              ),
+              Expanded(child: _overviewValue('Total', _totalItems)),
 
               Container(
                 height: 42,
                 width: 1,
-                color: Colors.white
-                    .withOpacity(0.15),
+                color: Colors.white.withOpacity(0.15),
               ),
 
-              Expanded(
-                child: _overviewValue(
-                  'Rented',
-                  _rentedItems,
-                ),
-              ),
+              Expanded(child: _overviewValue('Rented', _rentedItems)),
 
               Container(
                 height: 42,
                 width: 1,
-                color: Colors.white
-                    .withOpacity(0.15),
+                color: Colors.white.withOpacity(0.15),
               ),
 
               Expanded(
                 child: _overviewValue(
                   'Available',
-                  available < 0
-                      ? 0
-                      : available,
+                  available < 0 ? 0 : available,
                 ),
               ),
             ],
@@ -2775,20 +2616,15 @@ class _AdminDashboardState extends State<AdminDashboard> {
   // OVERVIEW VALUE
   // ================================================================
 
-  Widget _overviewValue(
-    String label,
-    int value,
-  ) {
+  Widget _overviewValue(String label, int value) {
     return Column(
       children: [
         Text(
           value.toString(),
-          style:
-              const TextStyle(
+          style: const TextStyle(
             color: Colors.white,
             fontSize: 22,
-            fontWeight:
-                FontWeight.w900,
+            fontWeight: FontWeight.w900,
           ),
         ),
 
@@ -2796,12 +2632,10 @@ class _AdminDashboardState extends State<AdminDashboard> {
 
         Text(
           label,
-          style:
-              const TextStyle(
+          style: const TextStyle(
             color: Color(0xFFE8D9CA),
             fontSize: 10,
-            fontWeight:
-                FontWeight.w600,
+            fontWeight: FontWeight.w600,
           ),
         ),
       ],

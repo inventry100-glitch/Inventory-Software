@@ -734,19 +734,7 @@ class AdminDrawer extends StatelessWidget {
                 // SETTINGS
                 // ======================================================
 
-                _drawerItem(
-                  context: context,
-                  index: 5,
-                  icon: Icons.settings_outlined,
-                  activeIcon: Icons.settings_rounded,
-                  title: 'Settings',
-                  onTap: () {
-                    Navigator.pop(context);
-
-                    // Settings screen can be connected here.
-                  },
-                ),
-
+               
                 // Small flexible space instead of Spacer().
                 const SizedBox(height: 18),
 

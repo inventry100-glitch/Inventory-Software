@@ -603,14 +603,2233 @@
 //   }
 // }
 
+// import 'package:cloud_firestore/cloud_firestore.dart';
+// import 'package:flutter/material.dart';
+// import 'package:inventory_management/Screens/drawer.dart';
 
+// class CustomersScreen extends StatefulWidget {
+//   const CustomersScreen({super.key});
 
+//   @override
+//   State<CustomersScreen> createState() => _CustomersScreenState();
+// }
 
+// class _CustomersScreenState extends State<CustomersScreen> {
+//   final FirebaseFirestore _db = FirebaseFirestore.instance;
+//   final TextEditingController _search = TextEditingController();
 
+//   int _tab = 0;
+
+//   // ============================================================
+//   // THEME
+//   // ============================================================
+
+//   static const Color background = Color(0xFFF7F2EA);
+//   static const Color surface = Color(0xFFFFFCF8);
+//   static const Color bronze = Color(0xFF9A6A3A);
+//   static const Color bronzeDark = Color(0xFF704823);
+//   static const Color bronzeLight = Color(0xFFE9D6BC);
+//   static const Color darkBrown = Color(0xFF2C2119);
+//   static const Color mediumBrown = Color(0xFF59483A);
+//   static const Color mutedText = Color(0xFF8A7B6E);
+//   static const Color border = Color(0xFFE6D9CB);
+
+//   @override
+//   void dispose() {
+//     _search.dispose();
+//     super.dispose();
+//   }
+
+//   // ============================================================
+//   // HELPERS
+//   // ============================================================
+
+//   String _s(dynamic v) => v?.toString() ?? '';
+
+//   double _n(dynamic v) {
+//     if (v is num) return v.toDouble();
+//     return double.tryParse(_s(v)) ?? 0;
+//   }
+
+//   String _rs(dynamic v) => 'Rs. ${_n(v).toStringAsFixed(0)}';
+
+//   String _payment(Map<String, dynamic> d) {
+//     final s = _s(d['paymentStatus']).toLowerCase();
+
+//     if (s == 'paid' || s == 'partial' || s == 'unpaid') {
+//       return s;
+//     }
+
+//     final total = _n(d['totalAmount']);
+//     final paid = _n(d['paidAmount']);
+
+//     if (total <= 0 || paid >= total) {
+//       return 'paid';
+//     }
+
+//     if (paid > 0) {
+//       return 'partial';
+//     }
+
+//     return 'unpaid';
+//   }
+
+//   String _rental(Map<String, dynamic> d) {
+//     return _s(d['rentalStatus']).toLowerCase() == 'returned'
+//         ? 'returned'
+//         : 'rented';
+//   }
+
+//   bool _cleared(Map<String, dynamic> d) {
+//     return _rental(d) == 'returned' && _payment(d) == 'paid';
+//   }
+
+//   List<Map<String, dynamic>> _items(Map<String, dynamic> d) {
+//     final raw = d['items'];
+
+//     if (raw is! List) {
+//       return [];
+//     }
+
+//     return raw
+//         .whereType<Map>()
+//         .map((e) => Map<String, dynamic>.from(e))
+//         .toList();
+//   }
+
+//   String _itemsText(Map<String, dynamic> d) {
+//     final items = _items(d);
+
+//     if (items.isEmpty) {
+//       return 'No rental items';
+//     }
+
+//     return items.map((i) {
+//       final name =
+//           _s(i['name']).isEmpty ? 'Unnamed Item' : _s(i['name']);
+
+//       final q = _n(i['quantity'] ?? i['qty']).toStringAsFixed(0);
+
+//       return '$name × $q';
+//     }).join(', ');
+//   }
+
+//   String _date(dynamic v) {
+//     DateTime? d;
+
+//     if (v is Timestamp) {
+//       d = v.toDate();
+//     }
+
+//     if (v is DateTime) {
+//       d = v;
+//     }
+
+//     if (d == null) {
+//       d = DateTime.tryParse(_s(v));
+//     }
+
+//     if (d == null) {
+//       return '-';
+//     }
+
+//     return '${d.day.toString().padLeft(2, '0')}/'
+//         '${d.month.toString().padLeft(2, '0')}/'
+//         '${d.year}';
+//   }
+
+//   void _msg(String text, {bool error = false}) {
+//     if (!mounted) return;
+
+//     ScaffoldMessenger.of(context).showSnackBar(
+//       SnackBar(
+//         content: Text(text),
+//         backgroundColor: error ? Colors.red.shade700 : bronzeDark,
+//         behavior: SnackBarBehavior.floating,
+//         shape: RoundedRectangleBorder(
+//           borderRadius: BorderRadius.circular(12),
+//         ),
+//       ),
+//     );
+//   }
+
+//   // ============================================================
+//   // MARK PAYMENT PAID
+//   // ============================================================
+
+//   Future<void> _markPaid(
+//     DocumentSnapshot<Map<String, dynamic>> bill,
+//   ) async {
+//     final d = bill.data() ?? {};
+
+//     if (_payment(d) == 'paid') {
+//       _msg('Paid payments are locked and cannot be changed.');
+//       return;
+//     }
+
+//     final total = _n(d['totalAmount']);
+
+//     final ok = await showDialog<bool>(
+//       context: context,
+//       builder: (c) {
+//         return AlertDialog(
+//           backgroundColor: surface,
+//           shape: RoundedRectangleBorder(
+//             borderRadius: BorderRadius.circular(20),
+//           ),
+//           title: const Text(
+//             'Mark Payment as Paid',
+//             style: TextStyle(
+//               fontWeight: FontWeight.bold,
+//               color: darkBrown,
+//             ),
+//           ),
+//           content: Text(
+//             'Customer: ${_s(d['customerName'])}\n'
+//             'Total: ${_rs(total)}\n'
+//             'Remaining: ${_rs(d['remainingAmount'])}\n\n'
+//             'After this, the payment status will be locked.',
+//             style: const TextStyle(
+//               color: mediumBrown,
+//               height: 1.5,
+//             ),
+//           ),
+//           actions: [
+//             TextButton(
+//               onPressed: () => Navigator.pop(c, false),
+//               child: const Text(
+//                 'Cancel',
+//                 style: TextStyle(color: mediumBrown),
+//               ),
+//             ),
+//             ElevatedButton(
+//               style: ElevatedButton.styleFrom(
+//                 backgroundColor: bronze,
+//                 foregroundColor: Colors.white,
+//               ),
+//               onPressed: () => Navigator.pop(c, true),
+//               child: const Text('Mark Paid'),
+//             ),
+//           ],
+//         );
+//       },
+//     );
+
+//     if (ok != true) return;
+
+//     try {
+//       await bill.reference.update({
+//         'paidAmount': total,
+//         'remainingAmount': 0,
+//         'paymentStatus': 'paid',
+//         'updatedAt': FieldValue.serverTimestamp(),
+//       });
+
+//       _msg('Payment marked as paid and locked.');
+//     } catch (e) {
+//       _msg(
+//         'Could not update payment: $e',
+//         error: true,
+//       );
+//     }
+//   }
+
+//   // ============================================================
+//   // RETURN ITEMS
+//   // ============================================================
+
+//   Future<void> _returnItems(
+//     DocumentSnapshot<Map<String, dynamic>> bill,
+//   ) async {
+//     final d = bill.data() ?? {};
+
+//     if (_rental(d) == 'returned') {
+//       return;
+//     }
+
+//     final ok = await showDialog<bool>(
+//       context: context,
+//       builder: (c) {
+//         return AlertDialog(
+//           backgroundColor: surface,
+//           shape: RoundedRectangleBorder(
+//             borderRadius: BorderRadius.circular(20),
+//           ),
+//           title: const Text(
+//             'Return Rental Items',
+//             style: TextStyle(
+//               fontWeight: FontWeight.bold,
+//               color: darkBrown,
+//             ),
+//           ),
+//           content: Text(
+//             'Mark these items as returned?\n\n${_itemsText(d)}',
+//             style: const TextStyle(
+//               color: mediumBrown,
+//               height: 1.5,
+//             ),
+//           ),
+//           actions: [
+//             TextButton(
+//               onPressed: () => Navigator.pop(c, false),
+//               child: const Text(
+//                 'Cancel',
+//                 style: TextStyle(color: mediumBrown),
+//               ),
+//             ),
+//             ElevatedButton(
+//               style: ElevatedButton.styleFrom(
+//                 backgroundColor: bronze,
+//                 foregroundColor: Colors.white,
+//               ),
+//               onPressed: () => Navigator.pop(c, true),
+//               child: const Text('Mark Returned'),
+//             ),
+//           ],
+//         );
+//       },
+//     );
+
+//     if (ok != true) return;
+
+//     try {
+//       await _db.runTransaction((tx) async {
+//         final items = _items(d);
+
+//         final refs =
+//             <DocumentReference<Map<String, dynamic>>>[];
+
+//         final snaps =
+//             <DocumentSnapshot<Map<String, dynamic>>>[];
+
+//         final qtys = <double>[];
+
+//         for (final item in items) {
+//           final id = _s(item['itemId']).isNotEmpty
+//               ? _s(item['itemId'])
+//               : _s(item['id']);
+
+//           if (id.isEmpty) continue;
+
+//           final ref = _db.collection('inventory').doc(id);
+
+//           refs.add(ref);
+//           snaps.add(await tx.get(ref));
+
+//           qtys.add(
+//             _n(item['quantity'] ?? item['qty']),
+//           );
+//         }
+
+//         for (var i = 0; i < refs.length; i++) {
+//           if (!snaps[i].exists) continue;
+
+//           final x = snaps[i].data() ?? {};
+
+//           tx.update(refs[i], {
+//             'availableStock':
+//                 _n(x['availableStock']) + qtys[i],
+//             'rentedStock':
+//                 (_n(x['rentedStock']) - qtys[i])
+//                     .clamp(0, 999999999),
+//             'updatedAt': FieldValue.serverTimestamp(),
+//           });
+//         }
+
+//         tx.update(bill.reference, {
+//           'rentalStatus': 'returned',
+//           'returnedAt': FieldValue.serverTimestamp(),
+//           'updatedAt': FieldValue.serverTimestamp(),
+//         });
+//       });
+
+//       _msg('Rental items returned successfully.');
+//     } catch (e) {
+//       _msg(
+//         'Could not return items: $e',
+//         error: true,
+//       );
+//     }
+//   }
+
+//   // ============================================================
+//   // EDIT CUSTOMER
+//   // ============================================================
+
+//   Future<void> _edit(
+//     DocumentSnapshot<Map<String, dynamic>> bill,
+//   ) async {
+//     final d = bill.data() ?? {};
+
+//     final name =
+//         TextEditingController(text: _s(d['customerName']));
+
+//     final contact =
+//         TextEditingController(text: _s(d['contactNumber']));
+
+//     final cnic =
+//         TextEditingController(text: _s(d['cnic']));
+
+//     final ok = await showDialog<bool>(
+//       context: context,
+//       builder: (c) {
+//         final width = MediaQuery.sizeOf(c).width;
+
+//         return AlertDialog(
+//           backgroundColor: surface,
+//           shape: RoundedRectangleBorder(
+//             borderRadius: BorderRadius.circular(20),
+//           ),
+//           title: const Text(
+//             'Edit Customer',
+//             style: TextStyle(
+//               fontWeight: FontWeight.bold,
+//               color: darkBrown,
+//             ),
+//           ),
+//           content: SizedBox(
+//             width: width < 500 ? width * .82 : 430,
+//             child: Column(
+//               mainAxisSize: MainAxisSize.min,
+//               children: [
+//                 _dialogField(
+//                   controller: name,
+//                   label: 'Customer Name',
+//                   icon: Icons.person_outline,
+//                 ),
+//                 const SizedBox(height: 12),
+//                 _dialogField(
+//                   controller: contact,
+//                   label: 'Contact Number',
+//                   icon: Icons.phone_outlined,
+//                 ),
+//                 const SizedBox(height: 12),
+//                 _dialogField(
+//                   controller: cnic,
+//                   label: 'CNIC',
+//                   icon: Icons.badge_outlined,
+//                 ),
+//               ],
+//             ),
+//           ),
+//           actions: [
+//             TextButton(
+//               onPressed: () => Navigator.pop(c, false),
+//               child: const Text(
+//                 'Cancel',
+//                 style: TextStyle(color: mediumBrown),
+//               ),
+//             ),
+//             ElevatedButton(
+//               style: ElevatedButton.styleFrom(
+//                 backgroundColor: bronze,
+//                 foregroundColor: Colors.white,
+//               ),
+//               onPressed: () => Navigator.pop(c, true),
+//               child: const Text('Save'),
+//             ),
+//           ],
+//         );
+//       },
+//     );
+
+//     if (ok == true) {
+//       try {
+//         await bill.reference.update({
+//           'customerName': name.text.trim(),
+//           'contactNumber': contact.text.trim(),
+//           'cnic': cnic.text.trim(),
+//           'updatedAt': FieldValue.serverTimestamp(),
+//         });
+
+//         _msg('Customer updated.');
+//       } catch (e) {
+//         _msg(
+//           'Could not update customer: $e',
+//           error: true,
+//         );
+//       }
+//     }
+
+//     name.dispose();
+//     contact.dispose();
+//     cnic.dispose();
+//   }
+
+//   Widget _dialogField({
+//     required TextEditingController controller,
+//     required String label,
+//     required IconData icon,
+//   }) {
+//     return TextField(
+//       controller: controller,
+//       style: const TextStyle(
+//         color: darkBrown,
+//         fontWeight: FontWeight.w500,
+//       ),
+//       decoration: InputDecoration(
+//         labelText: label,
+//         prefixIcon: Icon(
+//           icon,
+//           color: bronze,
+//         ),
+//         filled: true,
+//         fillColor: background,
+//         border: OutlineInputBorder(
+//           borderRadius: BorderRadius.circular(12),
+//           borderSide: const BorderSide(
+//             color: border,
+//           ),
+//         ),
+//         enabledBorder: OutlineInputBorder(
+//           borderRadius: BorderRadius.circular(12),
+//           borderSide: const BorderSide(
+//             color: border,
+//           ),
+//         ),
+//         focusedBorder: OutlineInputBorder(
+//           borderRadius: BorderRadius.circular(12),
+//           borderSide: const BorderSide(
+//             color: bronze,
+//             width: 1.5,
+//           ),
+//         ),
+//       ),
+//     );
+//   }
+
+//   // ============================================================
+//   // DELETE
+//   // ============================================================
+
+//   Future<void> _delete(
+//     DocumentSnapshot<Map<String, dynamic>> bill,
+//   ) async {
+//     final d = bill.data() ?? {};
+
+//     final ok = await showDialog<bool>(
+//       context: context,
+//       builder: (c) {
+//         return AlertDialog(
+//           backgroundColor: surface,
+//           shape: RoundedRectangleBorder(
+//             borderRadius: BorderRadius.circular(20),
+//           ),
+//           title: const Text(
+//             'Delete Customer Record?',
+//             style: TextStyle(
+//               fontWeight: FontWeight.bold,
+//               color: darkBrown,
+//             ),
+//           ),
+//           content: const Text(
+//             'If this rental is still active, its stock will be '
+//             'returned before the record is deleted.',
+//             style: TextStyle(
+//               color: mediumBrown,
+//               height: 1.5,
+//             ),
+//           ),
+//           actions: [
+//             TextButton(
+//               onPressed: () => Navigator.pop(c, false),
+//               child: const Text(
+//                 'Cancel',
+//                 style: TextStyle(color: mediumBrown),
+//               ),
+//             ),
+//             ElevatedButton(
+//               style: ElevatedButton.styleFrom(
+//                 backgroundColor: Colors.red.shade700,
+//                 foregroundColor: Colors.white,
+//               ),
+//               onPressed: () => Navigator.pop(c, true),
+//               child: const Text('Delete'),
+//             ),
+//           ],
+//         );
+//       },
+//     );
+
+//     if (ok != true) return;
+
+//     try {
+//       await _db.runTransaction((tx) async {
+//         if (_rental(d) != 'returned') {
+//           for (final item in _items(d)) {
+//             final id = _s(item['itemId']).isNotEmpty
+//                 ? _s(item['itemId'])
+//                 : _s(item['id']);
+
+//             if (id.isEmpty) continue;
+
+//             final ref =
+//                 _db.collection('inventory').doc(id);
+
+//             final snap = await tx.get(ref);
+
+//             if (!snap.exists) continue;
+
+//             final x = snap.data() ?? {};
+
+//             final q = _n(
+//               item['quantity'] ?? item['qty'],
+//             );
+
+//             tx.update(ref, {
+//               'availableStock':
+//                   _n(x['availableStock']) + q,
+//               'rentedStock':
+//                   (_n(x['rentedStock']) - q)
+//                       .clamp(0, 999999999),
+//               'updatedAt': FieldValue.serverTimestamp(),
+//             });
+//           }
+//         }
+
+//         tx.delete(bill.reference);
+//       });
+
+//       _msg('Customer record deleted.');
+//     } catch (e) {
+//       _msg(
+//         'Could not delete record: $e',
+//         error: true,
+//       );
+//     }
+//   }
+
+//   // ============================================================
+//   // BILL VIEW
+//   // ============================================================
+
+//   void _billView(Map<String, dynamic> d) {
+//     final items = _items(d);
+//     final payment = _payment(d);
+//     final rental = _rental(d);
+
+//     showDialog(
+//       context: context,
+//       builder: (c) {
+//         final screen = MediaQuery.sizeOf(c);
+
+//         return Dialog(
+//           backgroundColor: surface,
+//           insetPadding: EdgeInsets.symmetric(
+//             horizontal: screen.width < 500 ? 12 : 28,
+//             vertical: 20,
+//           ),
+//           shape: RoundedRectangleBorder(
+//             borderRadius: BorderRadius.circular(22),
+//           ),
+//           child: ConstrainedBox(
+//             constraints: BoxConstraints(
+//               maxWidth: 700,
+//               maxHeight: screen.height * .90,
+//             ),
+//             child: SingleChildScrollView(
+//               padding: EdgeInsets.all(
+//                 screen.width < 450 ? 17 : 24,
+//               ),
+//               child: Column(
+//                 crossAxisAlignment:
+//                     CrossAxisAlignment.start,
+//                 children: [
+//                   Row(
+//                     children: [
+//                       Container(
+//                         padding: const EdgeInsets.all(10),
+//                         decoration: BoxDecoration(
+//                           color: bronzeLight,
+//                           borderRadius:
+//                               BorderRadius.circular(12),
+//                         ),
+//                         child: const Icon(
+//                           Icons.receipt_long_outlined,
+//                           color: bronzeDark,
+//                         ),
+//                       ),
+//                       const SizedBox(width: 12),
+//                       const Expanded(
+//                         child: Text(
+//                           'Bill View',
+//                           style: TextStyle(
+//                             fontSize: 23,
+//                             fontWeight: FontWeight.bold,
+//                             color: darkBrown,
+//                           ),
+//                         ),
+//                       ),
+//                       IconButton(
+//                         onPressed: () =>
+//                             Navigator.pop(c),
+//                         icon: const Icon(Icons.close),
+//                       ),
+//                     ],
+//                   ),
+
+//                   const SizedBox(height: 14),
+
+//                   Container(
+//                     height: 1,
+//                     color: border,
+//                   ),
+
+//                   const SizedBox(height: 18),
+
+//                   _info(
+//                     'Bill Number',
+//                     _s(d['billNumber']).isEmpty
+//                         ? '-'
+//                         : _s(d['billNumber']),
+//                   ),
+//                   _info(
+//                     'Generated',
+//                     _date(d['createdAt']),
+//                   ),
+//                   _info(
+//                     'Customer',
+//                     _s(d['customerName']),
+//                   ),
+//                   _info(
+//                     'Contact',
+//                     _s(d['contactNumber']),
+//                   ),
+//                   _info(
+//                     'CNIC',
+//                     _s(d['cnic']),
+//                   ),
+//                   _info(
+//                     'Rental From',
+//                     _date(d['dateFrom']),
+//                   ),
+//                   _info(
+//                     'Rental Till',
+//                     _date(d['dateTill']),
+//                   ),
+
+//                   const SizedBox(height: 18),
+
+//                   _sectionTitle(
+//                     'Rental Items',
+//                     Icons.inventory_2_outlined,
+//                   ),
+
+//                   const SizedBox(height: 8),
+
+//                   if (items.isEmpty)
+//                     _emptyBox('No rental items')
+//                   else
+//                     ...items.map(
+//                       (i) => Container(
+//                         margin: const EdgeInsets.only(
+//                           bottom: 8,
+//                         ),
+//                         padding:
+//                             const EdgeInsets.symmetric(
+//                           horizontal: 12,
+//                           vertical: 10,
+//                         ),
+//                         decoration: BoxDecoration(
+//                           color: background,
+//                           borderRadius:
+//                               BorderRadius.circular(11),
+//                           border: Border.all(
+//                             color: border,
+//                           ),
+//                         ),
+//                         child: Row(
+//                           children: [
+//                             Expanded(
+//                               child: Text(
+//                                 _s(i['name']).isEmpty
+//                                     ? 'Unnamed Item'
+//                                     : _s(i['name']),
+//                                 style: const TextStyle(
+//                                   fontWeight:
+//                                       FontWeight.w700,
+//                                   color: darkBrown,
+//                                 ),
+//                               ),
+//                             ),
+//                             const SizedBox(width: 8),
+//                             Text(
+//                               '× ${_n(i['quantity'] ?? i['qty']).toStringAsFixed(0)}',
+//                               style: const TextStyle(
+//                                 color: mediumBrown,
+//                                 fontWeight:
+//                                     FontWeight.w600,
+//                               ),
+//                             ),
+//                             const SizedBox(width: 12),
+//                             Text(
+//                               _rs(
+//                                 i['totalPrice'] ??
+//                                     i['total'] ??
+//                                     i['amount'],
+//                               ),
+//                               style: const TextStyle(
+//                                 fontWeight:
+//                                     FontWeight.bold,
+//                                 color: bronzeDark,
+//                               ),
+//                             ),
+//                           ],
+//                         ),
+//                       ),
+//                     ),
+
+//                   const SizedBox(height: 8),
+//                   Container(
+//                     height: 1,
+//                     color: border,
+//                   ),
+//                   const SizedBox(height: 12),
+
+//                   _amount(
+//                     'Actual Amount',
+//                     d['subtotal'],
+//                   ),
+//                   _amount(
+//                     'Discount',
+//                     d['discount'],
+//                   ),
+//                   _amount(
+//                     'Total Amount',
+//                     d['totalAmount'],
+//                     bold: true,
+//                   ),
+//                   _amount(
+//                     'Paid',
+//                     d['paidAmount'],
+//                   ),
+//                   _amount(
+//                     'Remaining',
+//                     d['remainingAmount'],
+//                     bold: true,
+//                   ),
+
+//                   const SizedBox(height: 12),
+
+//                   Wrap(
+//                     spacing: 8,
+//                     runSpacing: 8,
+//                     children: [
+//                       _badge(
+//                         payment.toUpperCase(),
+//                         _paymentColor(payment),
+//                       ),
+//                       _badge(
+//                         rental == 'returned'
+//                             ? 'RETURNED'
+//                             : 'RENTED',
+//                         rental == 'returned'
+//                             ? Colors.green
+//                             : Colors.orange,
+//                       ),
+//                     ],
+//                   ),
+
+//                   if (payment == 'unpaid')
+//                     _note(
+//                       'Payment is due on or before the return date.',
+//                     ),
+
+//                   if (payment == 'partial')
+//                     _note(
+//                       'Remaining balance of '
+//                       '${_rs(d['remainingAmount'])} is due on '
+//                       'or before the return date.',
+//                     ),
+//                 ],
+//               ),
+//             ),
+//           ),
+//         );
+//       },
+//     );
+//   }
+
+//   Widget _sectionTitle(String text, IconData icon) {
+//     return Row(
+//       children: [
+//         Icon(
+//           icon,
+//           size: 19,
+//           color: bronze,
+//         ),
+//         const SizedBox(width: 8),
+//         Text(
+//           text,
+//           style: const TextStyle(
+//             fontSize: 17,
+//             fontWeight: FontWeight.bold,
+//             color: darkBrown,
+//           ),
+//         ),
+//       ],
+//     );
+//   }
+
+//   Widget _emptyBox(String text) {
+//     return Container(
+//       width: double.infinity,
+//       padding: const EdgeInsets.all(18),
+//       decoration: BoxDecoration(
+//         color: background,
+//         borderRadius: BorderRadius.circular(12),
+//       ),
+//       child: Text(
+//         text,
+//         style: const TextStyle(
+//           color: mutedText,
+//         ),
+//       ),
+//     );
+//   }
+
+//   Widget _info(String a, String b) {
+//     return Padding(
+//       padding: const EdgeInsets.only(bottom: 9),
+//       child: Row(
+//         crossAxisAlignment: CrossAxisAlignment.start,
+//         children: [
+//           SizedBox(
+//             width: 110,
+//             child: Text(
+//               a,
+//               style: const TextStyle(
+//                 color: mutedText,
+//                 fontWeight: FontWeight.w600,
+//               ),
+//             ),
+//           ),
+//           Expanded(
+//             child: Text(
+//               b.isEmpty ? '-' : b,
+//               style: const TextStyle(
+//                 color: darkBrown,
+//                 fontWeight: FontWeight.w600,
+//               ),
+//             ),
+//           ),
+//         ],
+//       ),
+//     );
+//   }
+
+//   Widget _amount(
+//     String a,
+//     dynamic b, {
+//     bool bold = false,
+//   }) {
+//     return Padding(
+//       padding: const EdgeInsets.symmetric(
+//         vertical: 4,
+//       ),
+//       child: Row(
+//         children: [
+//           Expanded(
+//             child: Text(
+//               a,
+//               style: TextStyle(
+//                 color: darkBrown,
+//                 fontWeight: bold
+//                     ? FontWeight.bold
+//                     : FontWeight.w500,
+//               ),
+//             ),
+//           ),
+//           Text(
+//             _rs(b),
+//             style: TextStyle(
+//               color: bold ? bronzeDark : mediumBrown,
+//               fontWeight: bold
+//                   ? FontWeight.bold
+//                   : FontWeight.w500,
+//             ),
+//           ),
+//         ],
+//       ),
+//     );
+//   }
+
+//   Widget _note(String text) {
+//     return Container(
+//       width: double.infinity,
+//       margin: const EdgeInsets.only(top: 14),
+//       padding: const EdgeInsets.all(12),
+//       decoration: BoxDecoration(
+//         color: Colors.orange.withOpacity(.08),
+//         borderRadius: BorderRadius.circular(11),
+//         border: Border.all(
+//           color: Colors.orange.withOpacity(.25),
+//         ),
+//       ),
+//       child: Text(
+//         text,
+//         style: const TextStyle(
+//           fontWeight: FontWeight.w600,
+//           color: mediumBrown,
+//         ),
+//       ),
+//     );
+//   }
+
+//   Widget _badge(String text, Color color) {
+//     return Container(
+//       padding: const EdgeInsets.symmetric(
+//         horizontal: 11,
+//         vertical: 6,
+//       ),
+//       decoration: BoxDecoration(
+//         color: color.withOpacity(.09),
+//         borderRadius: BorderRadius.circular(30),
+//         border: Border.all(
+//           color: color.withOpacity(.25),
+//         ),
+//       ),
+//       child: Text(
+//         text,
+//         style: TextStyle(
+//           color: color,
+//           fontSize: 11,
+//           fontWeight: FontWeight.bold,
+//         ),
+//       ),
+//     );
+//   }
+
+//   Color _paymentColor(String s) {
+//     if (s == 'paid') return Colors.green.shade700;
+//     if (s == 'partial') return Colors.orange.shade700;
+//     return Colors.red.shade700;
+//   }
+
+//   // ============================================================
+//   // SUMMARY CARD
+//   // ============================================================
+
+//   Widget _summary(
+//     String title,
+//     String value,
+//     IconData icon,
+//     Color color,
+//   ) {
+//     return Container(
+//       padding: const EdgeInsets.all(17),
+//       decoration: BoxDecoration(
+//         color: surface,
+//         borderRadius: BorderRadius.circular(17),
+//         border: Border.all(
+//           color: border,
+//         ),
+//         boxShadow: [
+//           BoxShadow(
+//             color: Colors.brown.withOpacity(.035),
+//             blurRadius: 12,
+//             offset: const Offset(0, 4),
+//           ),
+//         ],
+//       ),
+//       child: Row(
+//         children: [
+//           Container(
+//             width: 47,
+//             height: 47,
+//             decoration: BoxDecoration(
+//               color: color.withOpacity(.09),
+//               borderRadius: BorderRadius.circular(13),
+//             ),
+//             child: Icon(
+//               icon,
+//               color: color,
+//               size: 25,
+//             ),
+//           ),
+//           const SizedBox(width: 12),
+//           Expanded(
+//             child: Column(
+//               crossAxisAlignment:
+//                   CrossAxisAlignment.start,
+//               children: [
+//                 Text(
+//                   title,
+//                   maxLines: 2,
+//                   overflow: TextOverflow.ellipsis,
+//                   style: const TextStyle(
+//                     color: mutedText,
+//                     fontSize: 12,
+//                     fontWeight: FontWeight.w600,
+//                   ),
+//                 ),
+//                 const SizedBox(height: 3),
+//                 Text(
+//                   value,
+//                   style: const TextStyle(
+//                     fontSize: 22,
+//                     fontWeight: FontWeight.bold,
+//                     color: darkBrown,
+//                   ),
+//                 ),
+//               ],
+//             ),
+//           ),
+//         ],
+//       ),
+//     );
+//   }
+
+//   // ============================================================
+//   // TAB BUTTON
+//   // ============================================================
+
+//   Widget _tabButton(
+//     String text,
+//     int index,
+//     int count,
+//     IconData icon,
+//   ) {
+//     final selected = _tab == index;
+
+//     return Expanded(
+//       child: InkWell(
+//         onTap: () {
+//           setState(() {
+//             _tab = index;
+//           });
+//         },
+//         borderRadius: BorderRadius.circular(13),
+//         child: AnimatedContainer(
+//           duration: const Duration(milliseconds: 180),
+//           padding: const EdgeInsets.symmetric(
+//             vertical: 13,
+//             horizontal: 10,
+//           ),
+//           decoration: BoxDecoration(
+//             color: selected ? bronze : surface,
+//             borderRadius: BorderRadius.circular(13),
+//             border: Border.all(
+//               color: selected ? bronze : border,
+//             ),
+//           ),
+//           child: Row(
+//             mainAxisAlignment:
+//                 MainAxisAlignment.center,
+//             children: [
+//               Icon(
+//                 icon,
+//                 size: 19,
+//                 color: selected
+//                     ? Colors.white
+//                     : bronzeDark,
+//               ),
+//               const SizedBox(width: 7),
+//               Flexible(
+//                 child: Text(
+//                   text,
+//                   maxLines: 1,
+//                   overflow: TextOverflow.ellipsis,
+//                   textAlign: TextAlign.center,
+//                   style: TextStyle(
+//                     color: selected
+//                         ? Colors.white
+//                         : darkBrown,
+//                     fontWeight: FontWeight.bold,
+//                     fontSize: 12,
+//                   ),
+//                 ),
+//               ),
+//               const SizedBox(width: 7),
+//               Container(
+//                 padding: const EdgeInsets.symmetric(
+//                   horizontal: 7,
+//                   vertical: 3,
+//                 ),
+//                 decoration: BoxDecoration(
+//                   color: selected
+//                       ? Colors.white.withOpacity(.18)
+//                       : bronzeLight,
+//                   borderRadius:
+//                       BorderRadius.circular(20),
+//                 ),
+//                 child: Text(
+//                   '$count',
+//                   style: TextStyle(
+//                     color: selected
+//                         ? Colors.white
+//                         : bronzeDark,
+//                     fontSize: 11,
+//                     fontWeight: FontWeight.bold,
+//                   ),
+//                 ),
+//               ),
+//             ],
+//           ),
+//         ),
+//       ),
+//     );
+//   }
+
+//   // ============================================================
+//   // CUSTOMER CARD
+//   // ============================================================
+
+//   Widget _card(
+//     DocumentSnapshot<Map<String, dynamic>> bill,
+//   ) {
+//     final d = bill.data() ?? {};
+
+//     final name =
+//         _s(d['customerName']).isEmpty
+//             ? 'Unnamed Customer'
+//             : _s(d['customerName']);
+
+//     final payment = _payment(d);
+//     final rental = _rental(d);
+//     final cleared = _cleared(d);
+
+//     final width = MediaQuery.sizeOf(context).width;
+
+//     return Container(
+//       margin: const EdgeInsets.only(bottom: 14),
+//       padding: EdgeInsets.all(
+//         width < 400 ? 14 : 18,
+//       ),
+//       decoration: BoxDecoration(
+//         color: surface,
+//         borderRadius: BorderRadius.circular(18),
+//         border: Border.all(
+//           color: cleared
+//               ? Colors.green.withOpacity(.22)
+//               : bronzeLight,
+//         ),
+//         boxShadow: [
+//           BoxShadow(
+//             color: Colors.brown.withOpacity(.035),
+//             blurRadius: 12,
+//             offset: const Offset(0, 4),
+//           ),
+//         ],
+//       ),
+//       child: Column(
+//         crossAxisAlignment:
+//             CrossAxisAlignment.start,
+//         children: [
+//           // ----------------------------------------------------
+//           // CUSTOMER HEADER
+//           // ----------------------------------------------------
+
+//           Row(
+//             crossAxisAlignment:
+//                 CrossAxisAlignment.start,
+//             children: [
+//               Container(
+//                 width: 46,
+//                 height: 46,
+//                 decoration: BoxDecoration(
+//                   color: bronzeLight,
+//                   borderRadius:
+//                       BorderRadius.circular(14),
+//                 ),
+//                 alignment: Alignment.center,
+//                 child: Text(
+//                   name[0].toUpperCase(),
+//                   style: const TextStyle(
+//                     color: bronzeDark,
+//                     fontSize: 20,
+//                     fontWeight: FontWeight.bold,
+//                   ),
+//                 ),
+//               ),
+
+//               const SizedBox(width: 11),
+
+//               Expanded(
+//                 child: Column(
+//                   crossAxisAlignment:
+//                       CrossAxisAlignment.start,
+//                   children: [
+//                     Text(
+//                       name,
+//                       maxLines: 1,
+//                       overflow:
+//                           TextOverflow.ellipsis,
+//                       style: TextStyle(
+//                         fontSize:
+//                             width < 400 ? 16 : 18,
+//                         fontWeight: FontWeight.bold,
+//                         color: darkBrown,
+//                       ),
+//                     ),
+//                     const SizedBox(height: 4),
+//                     Text(
+//                       _s(d['contactNumber']).isEmpty
+//                           ? 'No contact'
+//                           : _s(d['contactNumber']),
+//                       maxLines: 1,
+//                       overflow:
+//                           TextOverflow.ellipsis,
+//                       style: const TextStyle(
+//                         color: mediumBrown,
+//                         fontSize: 13,
+//                       ),
+//                     ),
+//                     const SizedBox(height: 3),
+//                     Text(
+//                       'Bill: ${_s(d['billNumber']).isEmpty ? bill.id : d['billNumber']}',
+//                       maxLines: 1,
+//                       overflow:
+//                           TextOverflow.ellipsis,
+//                       style: const TextStyle(
+//                         fontSize: 11,
+//                         color: mutedText,
+//                       ),
+//                     ),
+//                   ],
+//                 ),
+//               ),
+
+//               const SizedBox(width: 5),
+
+//               PopupMenuButton<String>(
+//                 padding: EdgeInsets.zero,
+//                 icon: const Icon(
+//                   Icons.more_vert,
+//                   color: mediumBrown,
+//                 ),
+//                 onSelected: (v) {
+//                   if (v == 'edit') {
+//                     _edit(bill);
+//                   } else {
+//                     _delete(bill);
+//                   }
+//                 },
+//                 itemBuilder: (_) => const [
+//                   PopupMenuItem(
+//                     value: 'edit',
+//                     child: Row(
+//                       children: [
+//                         Icon(
+//                           Icons.edit_outlined,
+//                           size: 19,
+//                         ),
+//                         SizedBox(width: 8),
+//                         Text('Edit'),
+//                       ],
+//                     ),
+//                   ),
+//                   PopupMenuItem(
+//                     value: 'delete',
+//                     child: Row(
+//                       children: [
+//                         Icon(
+//                           Icons.delete_outline,
+//                           size: 19,
+//                           color: Colors.red,
+//                         ),
+//                         SizedBox(width: 8),
+//                         Text('Delete'),
+//                       ],
+//                     ),
+//                   ),
+//                 ],
+//               ),
+//             ],
+//           ),
+
+//           const SizedBox(height: 12),
+
+//           // ----------------------------------------------------
+//           // STATUS
+//           // ----------------------------------------------------
+
+//           Wrap(
+//             spacing: 7,
+//             runSpacing: 7,
+//             children: [
+//               _badge(
+//                 payment.toUpperCase(),
+//                 _paymentColor(payment),
+//               ),
+//               _badge(
+//                 rental == 'returned'
+//                     ? 'RETURNED'
+//                     : 'RENTED',
+//                 rental == 'returned'
+//                     ? Colors.green.shade700
+//                     : Colors.orange.shade700,
+//               ),
+//             ],
+//           ),
+
+//           const SizedBox(height: 14),
+
+//           // ----------------------------------------------------
+//           // ITEMS
+//           // ----------------------------------------------------
+
+//           Container(
+//             width: double.infinity,
+//             padding: const EdgeInsets.all(12),
+//             decoration: BoxDecoration(
+//               color: background,
+//               borderRadius: BorderRadius.circular(12),
+//               border: Border.all(
+//                 color: border,
+//               ),
+//             ),
+//             child: Row(
+//               crossAxisAlignment:
+//                   CrossAxisAlignment.start,
+//               children: [
+//                 Container(
+//                   width: 34,
+//                   height: 34,
+//                   decoration: BoxDecoration(
+//                     color: bronzeLight,
+//                     borderRadius:
+//                         BorderRadius.circular(9),
+//                   ),
+//                   child: const Icon(
+//                     Icons.inventory_2_outlined,
+//                     size: 18,
+//                     color: bronzeDark,
+//                   ),
+//                 ),
+//                 const SizedBox(width: 9),
+//                 Expanded(
+//                   child: Column(
+//                     crossAxisAlignment:
+//                         CrossAxisAlignment.start,
+//                     children: [
+//                       const Text(
+//                         'Rental Items',
+//                         style: TextStyle(
+//                           fontSize: 11,
+//                           color: mutedText,
+//                           fontWeight:
+//                               FontWeight.w600,
+//                         ),
+//                       ),
+//                       const SizedBox(height: 3),
+//                       Text(
+//                         _itemsText(d),
+//                         style: const TextStyle(
+//                           fontWeight: FontWeight.w700,
+//                           color: darkBrown,
+//                           height: 1.35,
+//                         ),
+//                       ),
+//                     ],
+//                   ),
+//                 ),
+//               ],
+//             ),
+//           ),
+
+//           const SizedBox(height: 12),
+
+//           // ----------------------------------------------------
+//           // AMOUNTS
+//           // ----------------------------------------------------
+
+//           LayoutBuilder(
+//             builder: (context, c) {
+//               final amountWidth =
+//                   (c.maxWidth - 14) / 3;
+
+//               if (amountWidth < 100) {
+//                 return Wrap(
+//                   spacing: 7,
+//                   runSpacing: 7,
+//                   children: [
+//                     SizedBox(
+//                       width: (c.maxWidth - 7) / 2,
+//                       child: _smallAmount(
+//                         'Total',
+//                         d['totalAmount'],
+//                         bronzeDark,
+//                       ),
+//                     ),
+//                     SizedBox(
+//                       width: (c.maxWidth - 7) / 2,
+//                       child: _smallAmount(
+//                         'Paid',
+//                         d['paidAmount'],
+//                         Colors.green.shade700,
+//                       ),
+//                     ),
+//                     SizedBox(
+//                       width: c.maxWidth,
+//                       child: _smallAmount(
+//                         'Remaining',
+//                         d['remainingAmount'],
+//                         payment == 'paid'
+//                             ? Colors.green.shade700
+//                             : Colors.red.shade700,
+//                       ),
+//                     ),
+//                   ],
+//                 );
+//               }
+
+//               return Row(
+//                 children: [
+//                   Expanded(
+//                     child: _smallAmount(
+//                       'Total',
+//                       d['totalAmount'],
+//                       bronzeDark,
+//                     ),
+//                   ),
+//                   const SizedBox(width: 7),
+//                   Expanded(
+//                     child: _smallAmount(
+//                       'Paid',
+//                       d['paidAmount'],
+//                       Colors.green.shade700,
+//                     ),
+//                   ),
+//                   const SizedBox(width: 7),
+//                   Expanded(
+//                     child: _smallAmount(
+//                       'Remaining',
+//                       d['remainingAmount'],
+//                       payment == 'paid'
+//                           ? Colors.green.shade700
+//                           : Colors.red.shade700,
+//                     ),
+//                   ),
+//                 ],
+//               );
+//             },
+//           ),
+
+//           const SizedBox(height: 12),
+
+//           // ----------------------------------------------------
+//           // MAIN ACTIONS
+//           // ----------------------------------------------------
+
+//           LayoutBuilder(
+//             builder: (context, c) {
+//               if (c.maxWidth < 430) {
+//                 return Column(
+//                   children: [
+//                     SizedBox(
+//                       width: double.infinity,
+//                       child: OutlinedButton.icon(
+//                         onPressed: () => _billView(d),
+//                         icon: const Icon(
+//                           Icons.receipt_long_outlined,
+//                           size: 19,
+//                         ),
+//                         label:
+//                             const Text('View Bill'),
+//                         style:
+//                             OutlinedButton.styleFrom(
+//                           foregroundColor: bronzeDark,
+//                           side: const BorderSide(
+//                             color: bronzeLight,
+//                           ),
+//                           padding:
+//                               const EdgeInsets.symmetric(
+//                             vertical: 12,
+//                           ),
+//                         ),
+//                       ),
+//                     ),
+//                     const SizedBox(height: 8),
+//                     SizedBox(
+//                       width: double.infinity,
+//                       child: payment == 'paid'
+//                           ? OutlinedButton.icon(
+//                               onPressed: null,
+//                               icon: const Icon(
+//                                 Icons.lock_outline,
+//                                 size: 18,
+//                               ),
+//                               label:
+//                                   const Text('Paid'),
+//                             )
+//                           : ElevatedButton.icon(
+//                               onPressed: () =>
+//                                   _markPaid(bill),
+//                               icon: const Icon(
+//                                 Icons
+//                                     .check_circle_outline,
+//                                 size: 18,
+//                               ),
+//                               label:
+//                                   const Text('Mark Paid'),
+//                               style:
+//                                   ElevatedButton.styleFrom(
+//                                 backgroundColor:
+//                                     bronze,
+//                                 foregroundColor:
+//                                     Colors.white,
+//                                 padding:
+//                                     const EdgeInsets
+//                                         .symmetric(
+//                                   vertical: 12,
+//                                 ),
+//                               ),
+//                             ),
+//                     ),
+//                   ],
+//                 );
+//               }
+
+//               return Row(
+//                 children: [
+//                   Expanded(
+//                     child: OutlinedButton.icon(
+//                       onPressed: () => _billView(d),
+//                       icon: const Icon(
+//                         Icons.receipt_long_outlined,
+//                         size: 19,
+//                       ),
+//                       label: const Text('View Bill'),
+//                       style:
+//                           OutlinedButton.styleFrom(
+//                         foregroundColor: bronzeDark,
+//                         side: const BorderSide(
+//                           color: bronzeLight,
+//                         ),
+//                         padding:
+//                             const EdgeInsets.symmetric(
+//                           vertical: 12,
+//                         ),
+//                       ),
+//                     ),
+//                   ),
+//                   const SizedBox(width: 8),
+//                   Expanded(
+//                     child: payment == 'paid'
+//                         ? OutlinedButton.icon(
+//                             onPressed: null,
+//                             icon: const Icon(
+//                               Icons.lock_outline,
+//                               size: 18,
+//                             ),
+//                             label:
+//                                 const Text('Paid'),
+//                           )
+//                         : ElevatedButton.icon(
+//                             onPressed: () =>
+//                                 _markPaid(bill),
+//                             icon: const Icon(
+//                               Icons
+//                                   .check_circle_outline,
+//                               size: 18,
+//                             ),
+//                             label:
+//                                 const Text('Mark Paid'),
+//                             style:
+//                                 ElevatedButton.styleFrom(
+//                               backgroundColor:
+//                                   bronze,
+//                               foregroundColor:
+//                                   Colors.white,
+//                               padding:
+//                                   const EdgeInsets
+//                                       .symmetric(
+//                                 vertical: 12,
+//                               ),
+//                             ),
+//                           ),
+//                   ),
+//                 ],
+//               );
+//             },
+//           ),
+
+//           const SizedBox(height: 8),
+
+//           // ----------------------------------------------------
+//           // RETURN BUTTON
+//           // ----------------------------------------------------
+
+//           if (rental != 'returned')
+//             SizedBox(
+//               width: double.infinity,
+//               child: OutlinedButton.icon(
+//                 onPressed: () =>
+//                     _returnItems(bill),
+//                 icon: const Icon(
+//                   Icons.assignment_return_outlined,
+//                   size: 19,
+//                 ),
+//                 label: const Text(
+//                   'Mark Rental Items Returned',
+//                 ),
+//                 style: OutlinedButton.styleFrom(
+//                   foregroundColor: bronzeDark,
+//                   side: const BorderSide(
+//                     color: bronzeLight,
+//                   ),
+//                   padding:
+//                       const EdgeInsets.symmetric(
+//                     vertical: 12,
+//                   ),
+//                 ),
+//               ),
+//             )
+//           else
+//             Container(
+//               width: double.infinity,
+//               padding: const EdgeInsets.all(11),
+//               decoration: BoxDecoration(
+//                 color:
+//                     Colors.green.withOpacity(.06),
+//                 borderRadius:
+//                     BorderRadius.circular(10),
+//                 border: Border.all(
+//                   color:
+//                       Colors.green.withOpacity(.18),
+//                 ),
+//               ),
+//               child: Text(
+//                 payment == 'paid'
+//                     ? '✓ Rental returned & payment cleared'
+//                     : '✓ Rental returned • payment still pending',
+//                 textAlign: TextAlign.center,
+//                 style: TextStyle(
+//                   color: Colors.green.shade700,
+//                   fontWeight: FontWeight.bold,
+//                   fontSize: 12,
+//                 ),
+//               ),
+//             ),
+
+//           const SizedBox(height: 9),
+
+//           // ----------------------------------------------------
+//           // RENTAL DATES
+//           // ----------------------------------------------------
+
+//           Row(
+//             crossAxisAlignment:
+//                 CrossAxisAlignment.start,
+//             children: [
+//               const Icon(
+//                 Icons.calendar_today_outlined,
+//                 size: 14,
+//                 color: mutedText,
+//               ),
+//               const SizedBox(width: 6),
+//               Expanded(
+//                 child: Text(
+//                   'Rental: ${_date(d['dateFrom'])} → ${_date(d['dateTill'])}',
+//                   style: const TextStyle(
+//                     color: mutedText,
+//                     fontSize: 11,
+//                   ),
+//                 ),
+//               ),
+//             ],
+//           ),
+//         ],
+//       ),
+//     );
+//   }
+
+//   Widget _smallAmount(
+//     String title,
+//     dynamic value,
+//     Color color,
+//   ) {
+//     return Container(
+//       width: double.infinity,
+//       padding: const EdgeInsets.all(10),
+//       decoration: BoxDecoration(
+//         color: color.withOpacity(.055),
+//         borderRadius: BorderRadius.circular(10),
+//         border: Border.all(
+//           color: color.withOpacity(.10),
+//         ),
+//       ),
+//       child: Column(
+//         crossAxisAlignment:
+//             CrossAxisAlignment.start,
+//         children: [
+//           Text(
+//             title,
+//             style: const TextStyle(
+//               fontSize: 10,
+//               color: mutedText,
+//               fontWeight: FontWeight.w600,
+//             ),
+//           ),
+//           const SizedBox(height: 3),
+//           Text(
+//             _rs(value),
+//             maxLines: 1,
+//             overflow: TextOverflow.ellipsis,
+//             style: TextStyle(
+//               fontSize: 13,
+//               fontWeight: FontWeight.bold,
+//               color: color,
+//             ),
+//           ),
+//         ],
+//       ),
+//     );
+//   }
+
+//   // ============================================================
+//   // BUILD
+//   // ============================================================
+
+//   @override
+//   Widget build(BuildContext context) {
+//     final screenWidth = MediaQuery.sizeOf(context).width;
+
+//     return Scaffold(
+//       backgroundColor: background,
+
+//       appBar: AppBar(
+//         elevation: 0,
+//         backgroundColor: surface,
+//         foregroundColor: darkBrown,
+//         titleSpacing: screenWidth < 400 ? 8 : 16,
+//         title: Text(
+//           'Customer Management',
+//           maxLines: 1,
+//           overflow: TextOverflow.ellipsis,
+//           style: TextStyle(
+//             fontWeight: FontWeight.bold,
+//             fontSize: screenWidth < 400 ? 18 : 20,
+//             color: darkBrown,
+//           ),
+//         ),
+//       ),
+
+//       drawer: const AdminDrawer(
+//         selectedIndex: 2,
+//       ),
+
+//       body: StreamBuilder<
+//           QuerySnapshot<Map<String, dynamic>>>(
+//         stream: _db
+//             .collection('bills')
+//             .orderBy(
+//               'createdAt',
+//               descending: true,
+//             )
+//             .snapshots(),
+
+//         builder: (context, snap) {
+//           if (snap.hasError) {
+//             return Center(
+//               child: Padding(
+//                 padding: const EdgeInsets.all(20),
+//                 child: Container(
+//                   padding: const EdgeInsets.all(20),
+//                   decoration: BoxDecoration(
+//                     color: surface,
+//                     borderRadius:
+//                         BorderRadius.circular(16),
+//                     border: Border.all(
+//                       color: border,
+//                     ),
+//                   ),
+//                   child: Text(
+//                     'Could not load customers.\n\n${snap.error}',
+//                     textAlign: TextAlign.center,
+//                     style: const TextStyle(
+//                       color: mediumBrown,
+//                     ),
+//                   ),
+//                 ),
+//               ),
+//             );
+//           }
+
+//           if (snap.connectionState ==
+//               ConnectionState.waiting) {
+//             return const Center(
+//               child: CircularProgressIndicator(
+//                 color: bronze,
+//               ),
+//             );
+//           }
+
+//           final all = snap.data?.docs ?? [];
+
+//           final searchText =
+//               _search.text.trim().toLowerCase();
+
+//           final filtered = all.where((b) {
+//             final name =
+//                 _s(b.data()['customerName'])
+//                     .toLowerCase();
+
+//             return name.contains(searchText);
+//           }).toList();
+
+//           final current = filtered
+//               .where((b) => !_cleared(b.data()))
+//               .toList();
+
+//           final cleared = filtered
+//               .where((b) => _cleared(b.data()))
+//               .toList();
+
+//           final shown =
+//               _tab == 0 ? current : cleared;
+
+//           return Center(
+//             child: ConstrainedBox(
+//               constraints:
+//                   const BoxConstraints(
+//                 maxWidth: 1150,
+//               ),
+//               child: ListView(
+//                 keyboardDismissBehavior:
+//                     ScrollViewKeyboardDismissBehavior
+//                         .onDrag,
+//                 padding: EdgeInsets.symmetric(
+//                   horizontal:
+//                       screenWidth < 400 ? 12 : 20,
+//                   vertical:
+//                       screenWidth < 400 ? 14 : 20,
+//                 ),
+//                 children: [
+//                   // ==================================================
+//                   // HEADER
+//                   // ==================================================
+
+//                   Row(
+//                     crossAxisAlignment:
+//                         CrossAxisAlignment.start,
+//                     children: [
+//                       Expanded(
+//                         child: Column(
+//                           crossAxisAlignment:
+//                               CrossAxisAlignment.start,
+//                           children: [
+//                             Text(
+//                               'Customers',
+//                               style: TextStyle(
+//                                 fontSize:
+//                                     screenWidth < 400
+//                                         ? 23
+//                                         : 28,
+//                                 fontWeight:
+//                                     FontWeight.bold,
+//                                 color: darkBrown,
+//                               ),
+//                             ),
+//                             const SizedBox(height: 4),
+//                             const Text(
+//                               'Manage rentals, payments and customer records.',
+//                               maxLines: 2,
+//                               overflow:
+//                                   TextOverflow.ellipsis,
+//                               style: TextStyle(
+//                                 color: mutedText,
+//                                 fontSize: 12,
+//                               ),
+//                             ),
+//                           ],
+//                         ),
+//                       ),
+//                     ],
+//                   ),
+
+//                   const SizedBox(height: 18),
+
+//                   // ==================================================
+//                   // SUMMARY
+//                   // ==================================================
+
+//                   LayoutBuilder(
+//                     builder: (context, c) {
+//                       final cards = [
+//                         _summary(
+//                           'Customers / Rentals',
+//                           '${all.length}',
+//                           Icons.people_outline,
+//                           bronze,
+//                         ),
+//                         _summary(
+//                           'Current / Pending',
+//                           '${current.length}',
+//                           Icons.pending_actions_outlined,
+//                           Colors.orange.shade700,
+//                         ),
+//                         _summary(
+//                           'Cleared / Returned',
+//                           '${cleared.length}',
+//                           Icons.verified_outlined,
+//                           Colors.green.shade700,
+//                         ),
+//                       ];
+
+//                       if (c.maxWidth < 650) {
+//                         return Column(
+//                           children: [
+//                             cards[0],
+//                             const SizedBox(height: 9),
+//                             cards[1],
+//                             const SizedBox(height: 9),
+//                             cards[2],
+//                           ],
+//                         );
+//                       }
+
+//                       return Row(
+//                         children: [
+//                           Expanded(
+//                             child: cards[0],
+//                           ),
+//                           const SizedBox(width: 10),
+//                           Expanded(
+//                             child: cards[1],
+//                           ),
+//                           const SizedBox(width: 10),
+//                           Expanded(
+//                             child: cards[2],
+//                           ),
+//                         ],
+//                       );
+//                     },
+//                   ),
+
+//                   const SizedBox(height: 18),
+
+//                   // ==================================================
+//                   // SEARCH
+//                   // ==================================================
+
+//                   Container(
+//                     decoration: BoxDecoration(
+//                       color: surface,
+//                       borderRadius:
+//                           BorderRadius.circular(14),
+//                       border: Border.all(
+//                         color: border,
+//                       ),
+//                     ),
+//                     child: TextField(
+//                       controller: _search,
+//                       onChanged: (_) {
+//                         setState(() {});
+//                       },
+//                       style: const TextStyle(
+//                         color: darkBrown,
+//                       ),
+//                       decoration: InputDecoration(
+//                         hintText:
+//                             'Search customer by name...',
+//                         hintStyle: const TextStyle(
+//                           color: mutedText,
+//                         ),
+//                         prefixIcon: const Icon(
+//                           Icons.search,
+//                           color: bronze,
+//                         ),
+//                         suffixIcon:
+//                             _search.text.isEmpty
+//                                 ? null
+//                                 : IconButton(
+//                                     onPressed: () {
+//                                       _search.clear();
+//                                       setState(() {});
+//                                     },
+//                                     icon: const Icon(
+//                                       Icons.clear,
+//                                       color: mutedText,
+//                                     ),
+//                                   ),
+//                         border: InputBorder.none,
+//                         contentPadding:
+//                             const EdgeInsets.symmetric(
+//                           horizontal: 15,
+//                           vertical: 15,
+//                         ),
+//                       ),
+//                     ),
+//                   ),
+
+//                   const SizedBox(height: 12),
+
+//                   // ==================================================
+//                   // TABS
+//                   // ==================================================
+
+//                   LayoutBuilder(
+//                     builder: (context, c) {
+//                       final a = _tabButton(
+//                         'Current / Pending',
+//                         0,
+//                         current.length,
+//                         Icons.pending_actions_outlined,
+//                       );
+
+//                       final b = _tabButton(
+//                         'Cleared / Returned',
+//                         1,
+//                         cleared.length,
+//                         Icons.verified_outlined,
+//                       );
+
+//                       if (c.maxWidth < 600) {
+//                         return Column(
+//                           children: [
+//                             SizedBox(
+//                               width: double.infinity,
+//                               child: a,
+//                             ),
+//                             const SizedBox(height: 8),
+//                             SizedBox(
+//                               width: double.infinity,
+//                               child: b,
+//                             ),
+//                           ],
+//                         );
+//                       }
+
+//                       return Row(
+//                         children: [
+//                           a,
+//                           const SizedBox(width: 10),
+//                           b,
+//                         ],
+//                       );
+//                     },
+//                   ),
+
+//                   const SizedBox(height: 20),
+
+//                   // ==================================================
+//                   // SECTION TITLE
+//                   // ==================================================
+
+//                   Row(
+//                     children: [
+//                       Container(
+//                         width: 4,
+//                         height: 22,
+//                         decoration: BoxDecoration(
+//                           color: bronze,
+//                           borderRadius:
+//                               BorderRadius.circular(5),
+//                         ),
+//                       ),
+//                       const SizedBox(width: 9),
+//                       Expanded(
+//                         child: Text(
+//                           _tab == 0
+//                               ? 'Current / Pending Clearance'
+//                               : 'Cleared / Returned',
+//                           style: TextStyle(
+//                             fontSize:
+//                                 screenWidth < 400
+//                                     ? 18
+//                                     : 20,
+//                             fontWeight:
+//                                 FontWeight.bold,
+//                             color: darkBrown,
+//                           ),
+//                         ),
+//                       ),
+//                       Text(
+//                         '${shown.length}',
+//                         style: const TextStyle(
+//                           color: mutedText,
+//                           fontWeight: FontWeight.bold,
+//                         ),
+//                       ),
+//                     ],
+//                   ),
+
+//                   const SizedBox(height: 11),
+
+//                   // ==================================================
+//                   // EMPTY STATE
+//                   // ==================================================
+
+//                   if (shown.isEmpty)
+//                     Container(
+//                       width: double.infinity,
+//                       padding: EdgeInsets.all(
+//                         screenWidth < 400
+//                             ? 32
+//                             : 45,
+//                       ),
+//                       decoration: BoxDecoration(
+//                         color: surface,
+//                         borderRadius:
+//                             BorderRadius.circular(17),
+//                         border: Border.all(
+//                           color: border,
+//                         ),
+//                       ),
+//                       child: Column(
+//                         children: [
+//                           Container(
+//                             width: 64,
+//                             height: 64,
+//                             decoration: BoxDecoration(
+//                               color: bronzeLight,
+//                               shape: BoxShape.circle,
+//                             ),
+//                             child: Icon(
+//                               _tab == 0
+//                                   ? Icons
+//                                       .assignment_turned_in_outlined
+//                                   : Icons
+//                                       .verified_outlined,
+//                               size: 31,
+//                               color: bronzeDark,
+//                             ),
+//                           ),
+//                           const SizedBox(height: 13),
+//                           Text(
+//                             _tab == 0
+//                                 ? 'No current or pending customers'
+//                                 : 'No cleared customers yet',
+//                             textAlign: TextAlign.center,
+//                             style: const TextStyle(
+//                               fontSize: 16,
+//                               fontWeight:
+//                                   FontWeight.bold,
+//                               color: darkBrown,
+//                             ),
+//                           ),
+//                           const SizedBox(height: 5),
+//                           const Text(
+//                             'Customer records will appear here automatically.',
+//                             textAlign: TextAlign.center,
+//                             style: TextStyle(
+//                               color: mutedText,
+//                               fontSize: 12,
+//                             ),
+//                           ),
+//                         ],
+//                       ),
+//                     )
+//                   else
+//                     ...shown.map(_card),
+
+//                   const SizedBox(height: 20),
+//                 ],
+//               ),
+//             ),
+//           );
+//         },
+//       ),
+//     );
+//   }
+// }
 
 
 
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:inventory_management/Screens/drawer.dart';
 
@@ -633,13 +2852,52 @@ class _CustomersScreenState extends State<CustomersScreen> {
 
   static const Color background = Color(0xFFF7F2EA);
   static const Color surface = Color(0xFFFFFCF8);
+
   static const Color bronze = Color(0xFF9A6A3A);
   static const Color bronzeDark = Color(0xFF704823);
   static const Color bronzeLight = Color(0xFFE9D6BC);
+
   static const Color darkBrown = Color(0xFF2C2119);
   static const Color mediumBrown = Color(0xFF59483A);
   static const Color mutedText = Color(0xFF8A7B6E);
+
   static const Color border = Color(0xFFE6D9CB);
+
+  // ============================================================
+  // USER-SPECIFIC FIRESTORE
+  // ============================================================
+
+  String get _uid {
+    final User? user = FirebaseAuth.instance.currentUser;
+
+    if (user == null) {
+      throw Exception('No user is currently logged in.');
+    }
+
+    return user.uid;
+  }
+
+  CollectionReference<Map<String, dynamic>> _userCollection(
+    String collectionName,
+  ) {
+    return _db.collection('Users').doc(_uid).collection(collectionName);
+  }
+
+  CollectionReference<Map<String, dynamic>> get _billsCollection {
+    return _userCollection('bills');
+  }
+
+  CollectionReference<Map<String, dynamic>> get _inventoryCollection {
+    return _userCollection('inventory');
+  }
+
+  CollectionReference<Map<String, dynamic>> get _customersCollection {
+    return _userCollection('customers');
+  }
+
+  // ============================================================
+  // DISPOSE
+  // ============================================================
 
   @override
   void dispose() {
@@ -651,23 +2909,35 @@ class _CustomersScreenState extends State<CustomersScreen> {
   // HELPERS
   // ============================================================
 
-  String _s(dynamic v) => v?.toString() ?? '';
+  String _s(dynamic v) {
+    return v?.toString() ?? '';
+  }
 
   double _n(dynamic v) {
-    if (v is num) return v.toDouble();
+    if (v is num) {
+      return v.toDouble();
+    }
+
     return double.tryParse(_s(v)) ?? 0;
   }
 
-  String _rs(dynamic v) => 'Rs. ${_n(v).toStringAsFixed(0)}';
+  String _rs(dynamic v) {
+    return 'Rs. ${_n(v).toStringAsFixed(0)}';
+  }
+
+  // ============================================================
+  // PAYMENT STATUS
+  // ============================================================
 
   String _payment(Map<String, dynamic> d) {
-    final s = _s(d['paymentStatus']).toLowerCase();
+    final s = _s(d['paymentStatus']).toLowerCase().trim();
 
     if (s == 'paid' || s == 'partial' || s == 'unpaid') {
       return s;
     }
 
     final total = _n(d['totalAmount']);
+
     final paid = _n(d['paidAmount']);
 
     if (total <= 0 || paid >= total) {
@@ -681,15 +2951,45 @@ class _CustomersScreenState extends State<CustomersScreen> {
     return 'unpaid';
   }
 
+  // ============================================================
+  // RENTAL STATUS
+  // ============================================================
+
   String _rental(Map<String, dynamic> d) {
-    return _s(d['rentalStatus']).toLowerCase() == 'returned'
-        ? 'returned'
-        : 'rented';
+    final status = _s(d['rentalStatus']).toLowerCase().trim();
+
+    return status == 'returned' ? 'returned' : 'rented';
   }
+
+  // ============================================================
+  // FINAL BILL
+  // ============================================================
+
+  bool _isFinal(Map<String, dynamic> d) {
+    if (d['isFinalBill'] == true) {
+      return true;
+    }
+
+    final billStatus = _s(d['billStatus']).toLowerCase().trim();
+
+    if (billStatus == 'final') {
+      return true;
+    }
+
+    return _rental(d) == 'returned' && _payment(d) == 'paid';
+  }
+
+  // ============================================================
+  // CLEARED
+  // ============================================================
 
   bool _cleared(Map<String, dynamic> d) {
     return _rental(d) == 'returned' && _payment(d) == 'paid';
   }
+
+  // ============================================================
+  // ITEMS
+  // ============================================================
 
   List<Map<String, dynamic>> _items(Map<String, dynamic> d) {
     final raw = d['items'];
@@ -711,15 +3011,20 @@ class _CustomersScreenState extends State<CustomersScreen> {
       return 'No rental items';
     }
 
-    return items.map((i) {
-      final name =
-          _s(i['name']).isEmpty ? 'Unnamed Item' : _s(i['name']);
+    return items
+        .map((i) {
+          final name = _s(i['name']).isEmpty ? 'Unnamed Item' : _s(i['name']);
 
-      final q = _n(i['quantity'] ?? i['qty']).toStringAsFixed(0);
+          final q = _n(i['quantity'] ?? i['qty']).toStringAsFixed(0);
 
-      return '$name × $q';
-    }).join(', ');
+          return '$name × $q';
+        })
+        .join(', ');
   }
+
+  // ============================================================
+  // DATE
+  // ============================================================
 
   String _date(dynamic v) {
     DateTime? d;
@@ -745,6 +3050,20 @@ class _CustomersScreenState extends State<CustomersScreen> {
         '${d.year}';
   }
 
+  // ============================================================
+  // RETURN DATE
+  // ============================================================
+
+  String _returnDate(Map<String, dynamic> d) {
+    final value = d['returnDate'] ?? d['returnedAt'];
+
+    return _date(value);
+  }
+
+  // ============================================================
+  // MESSAGE
+  // ============================================================
+
   void _msg(String text, {bool error = false}) {
     if (!mounted) return;
 
@@ -753,20 +3072,43 @@ class _CustomersScreenState extends State<CustomersScreen> {
         content: Text(text),
         backgroundColor: error ? Colors.red.shade700 : bronzeDark,
         behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(12),
-        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       ),
     );
+  }
+
+  // ============================================================
+  // FINALIZE BILL
+  //
+  // This does NOT create another document.
+  // It updates the SAME bill document.
+  // ============================================================
+
+  Future<void> _finalizeIfComplete(
+    DocumentReference<Map<String, dynamic>> billRef,
+    Map<String, dynamic> currentData,
+  ) async {
+    final bool returned = _rental(currentData) == 'returned';
+
+    final bool paid = _payment(currentData) == 'paid';
+
+    if (!returned || !paid) {
+      return;
+    }
+
+    await billRef.update({
+      'billStatus': 'final',
+      'isFinalBill': true,
+      'finalizedAt': FieldValue.serverTimestamp(),
+      'updatedAt': FieldValue.serverTimestamp(),
+    });
   }
 
   // ============================================================
   // MARK PAYMENT PAID
   // ============================================================
 
-  Future<void> _markPaid(
-    DocumentSnapshot<Map<String, dynamic>> bill,
-  ) async {
+  Future<void> _markPaid(DocumentSnapshot<Map<String, dynamic>> bill) async {
     final d = bill.data() ?? {};
 
     if (_payment(d) == 'paid') {
@@ -775,6 +3117,8 @@ class _CustomersScreenState extends State<CustomersScreen> {
     }
 
     final total = _n(d['totalAmount']);
+
+    final remaining = _n(d['remainingAmount']);
 
     final ok = await showDialog<bool>(
       context: context,
@@ -786,28 +3130,19 @@ class _CustomersScreenState extends State<CustomersScreen> {
           ),
           title: const Text(
             'Mark Payment as Paid',
-            style: TextStyle(
-              fontWeight: FontWeight.bold,
-              color: darkBrown,
-            ),
+            style: TextStyle(fontWeight: FontWeight.bold, color: darkBrown),
           ),
           content: Text(
             'Customer: ${_s(d['customerName'])}\n'
             'Total: ${_rs(total)}\n'
-            'Remaining: ${_rs(d['remainingAmount'])}\n\n'
+            'Remaining: ${_rs(remaining)}\n\n'
             'After this, the payment status will be locked.',
-            style: const TextStyle(
-              color: mediumBrown,
-              height: 1.5,
-            ),
+            style: const TextStyle(color: mediumBrown, height: 1.5),
           ),
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(c, false),
-              child: const Text(
-                'Cancel',
-                style: TextStyle(color: mediumBrown),
-              ),
+              child: const Text('Cancel', style: TextStyle(color: mediumBrown)),
             ),
             ElevatedButton(
               style: ElevatedButton.styleFrom(
@@ -822,9 +3157,17 @@ class _CustomersScreenState extends State<CustomersScreen> {
       },
     );
 
-    if (ok != true) return;
+    if (ok != true) {
+      return;
+    }
 
     try {
+      final updatedData = Map<String, dynamic>.from(d);
+
+      updatedData['paidAmount'] = total;
+      updatedData['remainingAmount'] = 0;
+      updatedData['paymentStatus'] = 'paid';
+
       await bill.reference.update({
         'paidAmount': total,
         'remainingAmount': 0,
@@ -832,12 +3175,22 @@ class _CustomersScreenState extends State<CustomersScreen> {
         'updatedAt': FieldValue.serverTimestamp(),
       });
 
-      _msg('Payment marked as paid and locked.');
+      // ----------------------------------------------------------
+      // FINALIZE SAME BILL IF ITEMS WERE ALREADY RETURNED
+      // ----------------------------------------------------------
+
+      updatedData['rentalStatus'] = d['rentalStatus'];
+
+      await _finalizeIfComplete(bill.reference, updatedData);
+
+      if (_rental(updatedData) == 'returned' &&
+          _payment(updatedData) == 'paid') {
+        _msg('Payment marked paid. Bill is now final.');
+      } else {
+        _msg('Payment marked as paid and locked.');
+      }
     } catch (e) {
-      _msg(
-        'Could not update payment: $e',
-        error: true,
-      );
+      _msg('Could not update payment: $e', error: true);
     }
   }
 
@@ -845,12 +3198,11 @@ class _CustomersScreenState extends State<CustomersScreen> {
   // RETURN ITEMS
   // ============================================================
 
-  Future<void> _returnItems(
-    DocumentSnapshot<Map<String, dynamic>> bill,
-  ) async {
+  Future<void> _returnItems(DocumentSnapshot<Map<String, dynamic>> bill) async {
     final d = bill.data() ?? {};
 
     if (_rental(d) == 'returned') {
+      _msg('These rental items have already been returned.');
       return;
     }
 
@@ -864,25 +3216,18 @@ class _CustomersScreenState extends State<CustomersScreen> {
           ),
           title: const Text(
             'Return Rental Items',
-            style: TextStyle(
-              fontWeight: FontWeight.bold,
-              color: darkBrown,
-            ),
+            style: TextStyle(fontWeight: FontWeight.bold, color: darkBrown),
           ),
           content: Text(
-            'Mark these items as returned?\n\n${_itemsText(d)}',
-            style: const TextStyle(
-              color: mediumBrown,
-              height: 1.5,
-            ),
+            'Mark these items as returned?\n\n'
+            '${_itemsText(d)}\n\n'
+            'The return date will automatically be saved.',
+            style: const TextStyle(color: mediumBrown, height: 1.5),
           ),
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(c, false),
-              child: const Text(
-                'Cancel',
-                style: TextStyle(color: mediumBrown),
-              ),
+              child: const Text('Cancel', style: TextStyle(color: mediumBrown)),
             ),
             ElevatedButton(
               style: ElevatedButton.styleFrom(
@@ -897,65 +3242,120 @@ class _CustomersScreenState extends State<CustomersScreen> {
       },
     );
 
-    if (ok != true) return;
+    if (ok != true) {
+      return;
+    }
 
     try {
       await _db.runTransaction((tx) async {
         final items = _items(d);
 
-        final refs =
-            <DocumentReference<Map<String, dynamic>>>[];
+        final refs = <DocumentReference<Map<String, dynamic>>>[];
 
-        final snaps =
-            <DocumentSnapshot<Map<String, dynamic>>>[];
+        final snaps = <DocumentSnapshot<Map<String, dynamic>>>[];
 
         final qtys = <double>[];
+
+        // ========================================================
+        // GET INVENTORY DOCUMENTS
+        // ========================================================
 
         for (final item in items) {
           final id = _s(item['itemId']).isNotEmpty
               ? _s(item['itemId'])
               : _s(item['id']);
 
-          if (id.isEmpty) continue;
+          if (id.isEmpty) {
+            continue;
+          }
 
-          final ref = _db.collection('inventory').doc(id);
+          final ref = _inventoryCollection.doc(id);
 
           refs.add(ref);
+
           snaps.add(await tx.get(ref));
 
-          qtys.add(
-            _n(item['quantity'] ?? item['qty']),
-          );
+          qtys.add(_n(item['quantity'] ?? item['qty']));
         }
 
+        // ========================================================
+        // RESTORE INVENTORY
+        // ========================================================
+
         for (var i = 0; i < refs.length; i++) {
-          if (!snaps[i].exists) continue;
+          if (!snaps[i].exists) {
+            continue;
+          }
 
           final x = snaps[i].data() ?? {};
 
+          final currentAvailable = _n(x['availableStock']);
+
+          final currentRented = _n(x['rentedStock']);
+
+          final quantity = qtys[i];
+
+          final newAvailable = currentAvailable + quantity;
+
+          final newRented = (currentRented - quantity).clamp(0, 999999999);
+
           tx.update(refs[i], {
-            'availableStock':
-                _n(x['availableStock']) + qtys[i],
-            'rentedStock':
-                (_n(x['rentedStock']) - qtys[i])
-                    .clamp(0, 999999999),
+            'availableStock': newAvailable,
+            'rentedStock': newRented,
             'updatedAt': FieldValue.serverTimestamp(),
           });
         }
 
-        tx.update(bill.reference, {
+        // ========================================================
+        // RETURN DATE
+        // ========================================================
+
+        final returnTimestamp = FieldValue.serverTimestamp();
+
+        // ========================================================
+        // UPDATE SAME BILL
+        // ========================================================
+
+        final bool paymentAlreadyPaid = _payment(d) == 'paid';
+
+        final Map<String, dynamic> billUpdate = {
           'rentalStatus': 'returned',
-          'returnedAt': FieldValue.serverTimestamp(),
+
+          // Main return date.
+          'returnDate': returnTimestamp,
+
+          // Keep returnedAt as well
+          // for compatibility.
+          'returnedAt': returnTimestamp,
+
           'updatedAt': FieldValue.serverTimestamp(),
-        });
+        };
+
+        // ========================================================
+        // IF PAYMENT IS ALREADY PAID,
+        // THIS BILL BECOMES FINAL NOW.
+        // ========================================================
+
+        if (paymentAlreadyPaid) {
+          billUpdate['billStatus'] = 'final';
+
+          billUpdate['isFinalBill'] = true;
+
+          billUpdate['finalizedAt'] = FieldValue.serverTimestamp();
+        }
+
+        tx.update(bill.reference, billUpdate);
       });
 
-      _msg('Rental items returned successfully.');
+      final bool paymentAlreadyPaid = _payment(d) == 'paid';
+
+      if (paymentAlreadyPaid) {
+        _msg('Items returned. Return date saved. Bill is now final.');
+      } else {
+        _msg('Items returned successfully. Return date saved.');
+      }
     } catch (e) {
-      _msg(
-        'Could not return items: $e',
-        error: true,
-      );
+      _msg('Could not return items: $e', error: true);
     }
   }
 
@@ -963,19 +3363,14 @@ class _CustomersScreenState extends State<CustomersScreen> {
   // EDIT CUSTOMER
   // ============================================================
 
-  Future<void> _edit(
-    DocumentSnapshot<Map<String, dynamic>> bill,
-  ) async {
+  Future<void> _edit(DocumentSnapshot<Map<String, dynamic>> bill) async {
     final d = bill.data() ?? {};
 
-    final name =
-        TextEditingController(text: _s(d['customerName']));
+    final name = TextEditingController(text: _s(d['customerName']));
 
-    final contact =
-        TextEditingController(text: _s(d['contactNumber']));
+    final contact = TextEditingController(text: _s(d['contactNumber']));
 
-    final cnic =
-        TextEditingController(text: _s(d['cnic']));
+    final cnic = TextEditingController(text: _s(d['cnic']));
 
     final ok = await showDialog<bool>(
       context: context,
@@ -989,10 +3384,7 @@ class _CustomersScreenState extends State<CustomersScreen> {
           ),
           title: const Text(
             'Edit Customer',
-            style: TextStyle(
-              fontWeight: FontWeight.bold,
-              color: darkBrown,
-            ),
+            style: TextStyle(fontWeight: FontWeight.bold, color: darkBrown),
           ),
           content: SizedBox(
             width: width < 500 ? width * .82 : 430,
@@ -1022,10 +3414,7 @@ class _CustomersScreenState extends State<CustomersScreen> {
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(c, false),
-              child: const Text(
-                'Cancel',
-                style: TextStyle(color: mediumBrown),
-              ),
+              child: const Text('Cancel', style: TextStyle(color: mediumBrown)),
             ),
             ElevatedButton(
               style: ElevatedButton.styleFrom(
@@ -1051,10 +3440,7 @@ class _CustomersScreenState extends State<CustomersScreen> {
 
         _msg('Customer updated.');
       } catch (e) {
-        _msg(
-          'Could not update customer: $e',
-          error: true,
-        );
+        _msg('Could not update customer: $e', error: true);
       }
     }
 
@@ -1063,6 +3449,10 @@ class _CustomersScreenState extends State<CustomersScreen> {
     cnic.dispose();
   }
 
+  // ============================================================
+  // DIALOG FIELD
+  // ============================================================
+
   Widget _dialogField({
     required TextEditingController controller,
     required String label,
@@ -1070,36 +3460,23 @@ class _CustomersScreenState extends State<CustomersScreen> {
   }) {
     return TextField(
       controller: controller,
-      style: const TextStyle(
-        color: darkBrown,
-        fontWeight: FontWeight.w500,
-      ),
+      style: const TextStyle(color: darkBrown, fontWeight: FontWeight.w500),
       decoration: InputDecoration(
         labelText: label,
-        prefixIcon: Icon(
-          icon,
-          color: bronze,
-        ),
+        prefixIcon: Icon(icon, color: bronze),
         filled: true,
         fillColor: background,
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(
-            color: border,
-          ),
+          borderSide: const BorderSide(color: border),
         ),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(
-            color: border,
-          ),
+          borderSide: const BorderSide(color: border),
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(
-            color: bronze,
-            width: 1.5,
-          ),
+          borderSide: const BorderSide(color: bronze, width: 1.5),
         ),
       ),
     );
@@ -1109,9 +3486,7 @@ class _CustomersScreenState extends State<CustomersScreen> {
   // DELETE
   // ============================================================
 
-  Future<void> _delete(
-    DocumentSnapshot<Map<String, dynamic>> bill,
-  ) async {
+  Future<void> _delete(DocumentSnapshot<Map<String, dynamic>> bill) async {
     final d = bill.data() ?? {};
 
     final ok = await showDialog<bool>(
@@ -1124,26 +3499,17 @@ class _CustomersScreenState extends State<CustomersScreen> {
           ),
           title: const Text(
             'Delete Customer Record?',
-            style: TextStyle(
-              fontWeight: FontWeight.bold,
-              color: darkBrown,
-            ),
+            style: TextStyle(fontWeight: FontWeight.bold, color: darkBrown),
           ),
           content: const Text(
             'If this rental is still active, its stock will be '
             'returned before the record is deleted.',
-            style: TextStyle(
-              color: mediumBrown,
-              height: 1.5,
-            ),
+            style: TextStyle(color: mediumBrown, height: 1.5),
           ),
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(c, false),
-              child: const Text(
-                'Cancel',
-                style: TextStyle(color: mediumBrown),
-              ),
+              child: const Text('Cancel', style: TextStyle(color: mediumBrown)),
             ),
             ElevatedButton(
               style: ElevatedButton.styleFrom(
@@ -1158,7 +3524,9 @@ class _CustomersScreenState extends State<CustomersScreen> {
       },
     );
 
-    if (ok != true) return;
+    if (ok != true) {
+      return;
+    }
 
     try {
       await _db.runTransaction((tx) async {
@@ -1168,41 +3536,38 @@ class _CustomersScreenState extends State<CustomersScreen> {
                 ? _s(item['itemId'])
                 : _s(item['id']);
 
-            if (id.isEmpty) continue;
+            if (id.isEmpty) {
+              continue;
+            }
 
-            final ref =
-                _db.collection('inventory').doc(id);
+            final ref = _inventoryCollection.doc(id);
 
             final snap = await tx.get(ref);
 
-            if (!snap.exists) continue;
+            if (!snap.exists) {
+              continue;
+            }
 
             final x = snap.data() ?? {};
 
-            final q = _n(
-              item['quantity'] ?? item['qty'],
-            );
+            final q = _n(item['quantity'] ?? item['qty']);
 
             tx.update(ref, {
-              'availableStock':
-                  _n(x['availableStock']) + q,
-              'rentedStock':
-                  (_n(x['rentedStock']) - q)
-                      .clamp(0, 999999999),
+              'availableStock': _n(x['availableStock']) + q,
+              'rentedStock': (_n(x['rentedStock']) - q).clamp(0, 999999999),
               'updatedAt': FieldValue.serverTimestamp(),
             });
           }
         }
 
+        // Delete only from the
+        // CURRENT USER'S bills.
         tx.delete(bill.reference);
       });
 
       _msg('Customer record deleted.');
     } catch (e) {
-      _msg(
-        'Could not delete record: $e',
-        error: true,
-      );
+      _msg('Could not delete record: $e', error: true);
     }
   }
 
@@ -1214,6 +3579,7 @@ class _CustomersScreenState extends State<CustomersScreen> {
     final items = _items(d);
     final payment = _payment(d);
     final rental = _rental(d);
+    final finalBill = _isFinal(d);
 
     showDialog(
       context: context,
@@ -1235,21 +3601,20 @@ class _CustomersScreenState extends State<CustomersScreen> {
               maxHeight: screen.height * .90,
             ),
             child: SingleChildScrollView(
-              padding: EdgeInsets.all(
-                screen.width < 450 ? 17 : 24,
-              ),
+              padding: EdgeInsets.all(screen.width < 450 ? 17 : 24),
               child: Column(
-                crossAxisAlignment:
-                    CrossAxisAlignment.start,
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+                  // ==================================================
+                  // HEADER
+                  // ==================================================
                   Row(
                     children: [
                       Container(
                         padding: const EdgeInsets.all(10),
                         decoration: BoxDecoration(
                           color: bronzeLight,
-                          borderRadius:
-                              BorderRadius.circular(12),
+                          borderRadius: BorderRadius.circular(12),
                         ),
                         child: const Icon(
                           Icons.receipt_long_outlined,
@@ -1268,8 +3633,7 @@ class _CustomersScreenState extends State<CustomersScreen> {
                         ),
                       ),
                       IconButton(
-                        onPressed: () =>
-                            Navigator.pop(c),
+                        onPressed: () => Navigator.pop(c),
                         icon: const Icon(Icons.close),
                       ),
                     ],
@@ -1277,50 +3641,92 @@ class _CustomersScreenState extends State<CustomersScreen> {
 
                   const SizedBox(height: 14),
 
-                  Container(
-                    height: 1,
-                    color: border,
-                  ),
+                  Container(height: 1, color: border),
 
                   const SizedBox(height: 18),
 
+                  // ==================================================
+                  // FINAL BILL BADGE
+                  // ==================================================
+                  if (finalBill)
+                    Container(
+                      width: double.infinity,
+                      margin: const EdgeInsets.only(bottom: 16),
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: Colors.green.withOpacity(.07),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(
+                          color: Colors.green.withOpacity(.20),
+                        ),
+                      ),
+                      child: Row(
+                        children: [
+                          Icon(
+                            Icons.verified_outlined,
+                            color: Colors.green.shade700,
+                          ),
+                          const SizedBox(width: 9),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'FINAL BILL',
+                                  style: TextStyle(
+                                    color: Colors.green.shade700,
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 12,
+                                  ),
+                                ),
+                                const SizedBox(height: 2),
+                                const Text(
+                                  'Rental returned and payment cleared.',
+                                  style: TextStyle(
+                                    color: mediumBrown,
+                                    fontSize: 11,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+
+                  // ==================================================
+                  // BILL INFO
+                  // ==================================================
                   _info(
                     'Bill Number',
-                    _s(d['billNumber']).isEmpty
-                        ? '-'
-                        : _s(d['billNumber']),
+                    _s(d['billNumber']).isEmpty ? '-' : _s(d['billNumber']),
                   ),
-                  _info(
-                    'Generated',
-                    _date(d['createdAt']),
-                  ),
-                  _info(
-                    'Customer',
-                    _s(d['customerName']),
-                  ),
-                  _info(
-                    'Contact',
-                    _s(d['contactNumber']),
-                  ),
-                  _info(
-                    'CNIC',
-                    _s(d['cnic']),
-                  ),
-                  _info(
-                    'Rental From',
-                    _date(d['dateFrom']),
-                  ),
-                  _info(
-                    'Rental Till',
-                    _date(d['dateTill']),
-                  ),
+
+                  _info('Generated', _date(d['createdAt'])),
+
+                  _info('Customer', _s(d['customerName'])),
+
+                  _info('Contact', _s(d['contactNumber'])),
+
+                  _info('CNIC', _s(d['cnic'])),
+
+                  _info('Rental Location', _s(d['rentalLocation'])),
+
+                  _info('Rental From', _date(d['dateFrom'])),
+
+                  _info('Rental Till', _date(d['dateTill'])),
+
+                  // ==================================================
+                  // RETURN DATE
+                  // ==================================================
+                  _info('Return Date', _returnDate(d)),
 
                   const SizedBox(height: 18),
 
-                  _sectionTitle(
-                    'Rental Items',
-                    Icons.inventory_2_outlined,
-                  ),
+                  // ==================================================
+                  // RENTAL ITEMS
+                  // ==================================================
+                  _sectionTitle('Rental Items', Icons.inventory_2_outlined),
 
                   const SizedBox(height: 8),
 
@@ -1329,21 +3735,15 @@ class _CustomersScreenState extends State<CustomersScreen> {
                   else
                     ...items.map(
                       (i) => Container(
-                        margin: const EdgeInsets.only(
-                          bottom: 8,
-                        ),
-                        padding:
-                            const EdgeInsets.symmetric(
+                        margin: const EdgeInsets.only(bottom: 8),
+                        padding: const EdgeInsets.symmetric(
                           horizontal: 12,
                           vertical: 10,
                         ),
                         decoration: BoxDecoration(
                           color: background,
-                          borderRadius:
-                              BorderRadius.circular(11),
-                          border: Border.all(
-                            color: border,
-                          ),
+                          borderRadius: BorderRadius.circular(11),
+                          border: Border.all(color: border),
                         ),
                         child: Row(
                           children: [
@@ -1353,8 +3753,7 @@ class _CustomersScreenState extends State<CustomersScreen> {
                                     ? 'Unnamed Item'
                                     : _s(i['name']),
                                 style: const TextStyle(
-                                  fontWeight:
-                                      FontWeight.w700,
+                                  fontWeight: FontWeight.w700,
                                   color: darkBrown,
                                 ),
                               ),
@@ -1364,20 +3763,14 @@ class _CustomersScreenState extends State<CustomersScreen> {
                               '× ${_n(i['quantity'] ?? i['qty']).toStringAsFixed(0)}',
                               style: const TextStyle(
                                 color: mediumBrown,
-                                fontWeight:
-                                    FontWeight.w600,
+                                fontWeight: FontWeight.w600,
                               ),
                             ),
                             const SizedBox(width: 12),
                             Text(
-                              _rs(
-                                i['totalPrice'] ??
-                                    i['total'] ??
-                                    i['amount'],
-                              ),
+                              _rs(i['totalPrice'] ?? i['total'] ?? i['amount']),
                               style: const TextStyle(
-                                fontWeight:
-                                    FontWeight.bold,
+                                fontWeight: FontWeight.bold,
                                 color: bronzeDark,
                               ),
                             ),
@@ -1387,60 +3780,42 @@ class _CustomersScreenState extends State<CustomersScreen> {
                     ),
 
                   const SizedBox(height: 8),
-                  Container(
-                    height: 1,
-                    color: border,
-                  ),
-                  const SizedBox(height: 12),
 
-                  _amount(
-                    'Actual Amount',
-                    d['subtotal'],
-                  ),
-                  _amount(
-                    'Discount',
-                    d['discount'],
-                  ),
-                  _amount(
-                    'Total Amount',
-                    d['totalAmount'],
-                    bold: true,
-                  ),
-                  _amount(
-                    'Paid',
-                    d['paidAmount'],
-                  ),
-                  _amount(
-                    'Remaining',
-                    d['remainingAmount'],
-                    bold: true,
-                  ),
+                  Container(height: 1, color: border),
 
                   const SizedBox(height: 12),
 
+                  _amount('Actual Amount', d['subtotal']),
+
+                  _amount('Discount', d['discount']),
+
+                  _amount('Total Amount', d['totalAmount'], bold: true),
+
+                  _amount('Paid', d['paidAmount']),
+
+                  _amount('Remaining', d['remainingAmount'], bold: true),
+
+                  const SizedBox(height: 12),
+
+                  // ==================================================
+                  // STATUS BADGES
+                  // ==================================================
                   Wrap(
                     spacing: 8,
                     runSpacing: 8,
                     children: [
+                      _badge(payment.toUpperCase(), _paymentColor(payment)),
                       _badge(
-                        payment.toUpperCase(),
-                        _paymentColor(payment),
+                        rental == 'returned' ? 'RETURNED' : 'RENTED',
+                        rental == 'returned' ? Colors.green : Colors.orange,
                       ),
-                      _badge(
-                        rental == 'returned'
-                            ? 'RETURNED'
-                            : 'RENTED',
-                        rental == 'returned'
-                            ? Colors.green
-                            : Colors.orange,
-                      ),
+                      if (finalBill)
+                        _badge('FINAL BILL', Colors.green.shade700),
                     ],
                   ),
 
                   if (payment == 'unpaid')
-                    _note(
-                      'Payment is due on or before the return date.',
-                    ),
+                    _note('Payment is due on or before the return date.'),
 
                   if (payment == 'partial')
                     _note(
@@ -1457,14 +3832,14 @@ class _CustomersScreenState extends State<CustomersScreen> {
     );
   }
 
+  // ============================================================
+  // SECTION TITLE
+  // ============================================================
+
   Widget _sectionTitle(String text, IconData icon) {
     return Row(
       children: [
-        Icon(
-          icon,
-          size: 19,
-          color: bronze,
-        ),
+        Icon(icon, size: 19, color: bronze),
         const SizedBox(width: 8),
         Text(
           text,
@@ -1478,6 +3853,10 @@ class _CustomersScreenState extends State<CustomersScreen> {
     );
   }
 
+  // ============================================================
+  // EMPTY BOX
+  // ============================================================
+
   Widget _emptyBox(String text) {
     return Container(
       width: double.infinity,
@@ -1486,14 +3865,13 @@ class _CustomersScreenState extends State<CustomersScreen> {
         color: background,
         borderRadius: BorderRadius.circular(12),
       ),
-      child: Text(
-        text,
-        style: const TextStyle(
-          color: mutedText,
-        ),
-      ),
+      child: Text(text, style: const TextStyle(color: mutedText)),
     );
   }
+
+  // ============================================================
+  // INFO
+  // ============================================================
 
   Widget _info(String a, String b) {
     return Padding(
@@ -1525,15 +3903,13 @@ class _CustomersScreenState extends State<CustomersScreen> {
     );
   }
 
-  Widget _amount(
-    String a,
-    dynamic b, {
-    bool bold = false,
-  }) {
+  // ============================================================
+  // AMOUNT
+  // ============================================================
+
+  Widget _amount(String a, dynamic b, {bool bold = false}) {
     return Padding(
-      padding: const EdgeInsets.symmetric(
-        vertical: 4,
-      ),
+      padding: const EdgeInsets.symmetric(vertical: 4),
       child: Row(
         children: [
           Expanded(
@@ -1541,9 +3917,7 @@ class _CustomersScreenState extends State<CustomersScreen> {
               a,
               style: TextStyle(
                 color: darkBrown,
-                fontWeight: bold
-                    ? FontWeight.bold
-                    : FontWeight.w500,
+                fontWeight: bold ? FontWeight.bold : FontWeight.w500,
               ),
             ),
           ),
@@ -1551,15 +3925,17 @@ class _CustomersScreenState extends State<CustomersScreen> {
             _rs(b),
             style: TextStyle(
               color: bold ? bronzeDark : mediumBrown,
-              fontWeight: bold
-                  ? FontWeight.bold
-                  : FontWeight.w500,
+              fontWeight: bold ? FontWeight.bold : FontWeight.w500,
             ),
           ),
         ],
       ),
     );
   }
+
+  // ============================================================
+  // NOTE
+  // ============================================================
 
   Widget _note(String text) {
     return Container(
@@ -1569,32 +3945,26 @@ class _CustomersScreenState extends State<CustomersScreen> {
       decoration: BoxDecoration(
         color: Colors.orange.withOpacity(.08),
         borderRadius: BorderRadius.circular(11),
-        border: Border.all(
-          color: Colors.orange.withOpacity(.25),
-        ),
+        border: Border.all(color: Colors.orange.withOpacity(.25)),
       ),
       child: Text(
         text,
-        style: const TextStyle(
-          fontWeight: FontWeight.w600,
-          color: mediumBrown,
-        ),
+        style: const TextStyle(fontWeight: FontWeight.w600, color: mediumBrown),
       ),
     );
   }
 
+  // ============================================================
+  // BADGE
+  // ============================================================
+
   Widget _badge(String text, Color color) {
     return Container(
-      padding: const EdgeInsets.symmetric(
-        horizontal: 11,
-        vertical: 6,
-      ),
+      padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 6),
       decoration: BoxDecoration(
         color: color.withOpacity(.09),
         borderRadius: BorderRadius.circular(30),
-        border: Border.all(
-          color: color.withOpacity(.25),
-        ),
+        border: Border.all(color: color.withOpacity(.25)),
       ),
       child: Text(
         text,
@@ -1607,9 +3977,19 @@ class _CustomersScreenState extends State<CustomersScreen> {
     );
   }
 
+  // ============================================================
+  // PAYMENT COLOR
+  // ============================================================
+
   Color _paymentColor(String s) {
-    if (s == 'paid') return Colors.green.shade700;
-    if (s == 'partial') return Colors.orange.shade700;
+    if (s == 'paid') {
+      return Colors.green.shade700;
+    }
+
+    if (s == 'partial') {
+      return Colors.orange.shade700;
+    }
+
     return Colors.red.shade700;
   }
 
@@ -1617,20 +3997,13 @@ class _CustomersScreenState extends State<CustomersScreen> {
   // SUMMARY CARD
   // ============================================================
 
-  Widget _summary(
-    String title,
-    String value,
-    IconData icon,
-    Color color,
-  ) {
+  Widget _summary(String title, String value, IconData icon, Color color) {
     return Container(
       padding: const EdgeInsets.all(17),
       decoration: BoxDecoration(
         color: surface,
         borderRadius: BorderRadius.circular(17),
-        border: Border.all(
-          color: border,
-        ),
+        border: Border.all(color: border),
         boxShadow: [
           BoxShadow(
             color: Colors.brown.withOpacity(.035),
@@ -1648,17 +4021,12 @@ class _CustomersScreenState extends State<CustomersScreen> {
               color: color.withOpacity(.09),
               borderRadius: BorderRadius.circular(13),
             ),
-            child: Icon(
-              icon,
-              color: color,
-              size: 25,
-            ),
+            child: Icon(icon, color: color, size: 25),
           ),
           const SizedBox(width: 12),
           Expanded(
             child: Column(
-              crossAxisAlignment:
-                  CrossAxisAlignment.start,
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
                   title,
@@ -1691,12 +4059,7 @@ class _CustomersScreenState extends State<CustomersScreen> {
   // TAB BUTTON
   // ============================================================
 
-  Widget _tabButton(
-    String text,
-    int index,
-    int count,
-    IconData icon,
-  ) {
+  Widget _tabButton(String text, int index, int count, IconData icon) {
     final selected = _tab == index;
 
     return Expanded(
@@ -1709,28 +4072,16 @@ class _CustomersScreenState extends State<CustomersScreen> {
         borderRadius: BorderRadius.circular(13),
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 180),
-          padding: const EdgeInsets.symmetric(
-            vertical: 13,
-            horizontal: 10,
-          ),
+          padding: const EdgeInsets.symmetric(vertical: 13, horizontal: 10),
           decoration: BoxDecoration(
             color: selected ? bronze : surface,
             borderRadius: BorderRadius.circular(13),
-            border: Border.all(
-              color: selected ? bronze : border,
-            ),
+            border: Border.all(color: selected ? bronze : border),
           ),
           child: Row(
-            mainAxisAlignment:
-                MainAxisAlignment.center,
+            mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(
-                icon,
-                size: 19,
-                color: selected
-                    ? Colors.white
-                    : bronzeDark,
-              ),
+              Icon(icon, size: 19, color: selected ? Colors.white : bronzeDark),
               const SizedBox(width: 7),
               Flexible(
                 child: Text(
@@ -1739,9 +4090,7 @@ class _CustomersScreenState extends State<CustomersScreen> {
                   overflow: TextOverflow.ellipsis,
                   textAlign: TextAlign.center,
                   style: TextStyle(
-                    color: selected
-                        ? Colors.white
-                        : darkBrown,
+                    color: selected ? Colors.white : darkBrown,
                     fontWeight: FontWeight.bold,
                     fontSize: 12,
                   ),
@@ -1749,23 +4098,15 @@ class _CustomersScreenState extends State<CustomersScreen> {
               ),
               const SizedBox(width: 7),
               Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 7,
-                  vertical: 3,
-                ),
+                padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
                 decoration: BoxDecoration(
-                  color: selected
-                      ? Colors.white.withOpacity(.18)
-                      : bronzeLight,
-                  borderRadius:
-                      BorderRadius.circular(20),
+                  color: selected ? Colors.white.withOpacity(.18) : bronzeLight,
+                  borderRadius: BorderRadius.circular(20),
                 ),
                 child: Text(
                   '$count',
                   style: TextStyle(
-                    color: selected
-                        ? Colors.white
-                        : bronzeDark,
+                    color: selected ? Colors.white : bronzeDark,
                     fontSize: 11,
                     fontWeight: FontWeight.bold,
                   ),
@@ -1782,32 +4123,33 @@ class _CustomersScreenState extends State<CustomersScreen> {
   // CUSTOMER CARD
   // ============================================================
 
-  Widget _card(
-    DocumentSnapshot<Map<String, dynamic>> bill,
-  ) {
+  Widget _card(DocumentSnapshot<Map<String, dynamic>> bill) {
     final d = bill.data() ?? {};
 
-    final name =
-        _s(d['customerName']).isEmpty
-            ? 'Unnamed Customer'
-            : _s(d['customerName']);
+    final name = _s(d['customerName']).isEmpty
+        ? 'Unnamed Customer'
+        : _s(d['customerName']);
 
     final payment = _payment(d);
+
     final rental = _rental(d);
+
     final cleared = _cleared(d);
+
+    final finalBill = _isFinal(d);
 
     final width = MediaQuery.sizeOf(context).width;
 
     return Container(
       margin: const EdgeInsets.only(bottom: 14),
-      padding: EdgeInsets.all(
-        width < 400 ? 14 : 18,
-      ),
+      padding: EdgeInsets.all(width < 400 ? 14 : 18),
       decoration: BoxDecoration(
         color: surface,
         borderRadius: BorderRadius.circular(18),
         border: Border.all(
-          color: cleared
+          color: finalBill
+              ? Colors.green.withOpacity(.25)
+              : cleared
               ? Colors.green.withOpacity(.22)
               : bronzeLight,
         ),
@@ -1820,24 +4162,20 @@ class _CustomersScreenState extends State<CustomersScreen> {
         ],
       ),
       child: Column(
-        crossAxisAlignment:
-            CrossAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // ----------------------------------------------------
+          // ========================================================
           // CUSTOMER HEADER
-          // ----------------------------------------------------
-
+          // ========================================================
           Row(
-            crossAxisAlignment:
-                CrossAxisAlignment.start,
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Container(
                 width: 46,
                 height: 46,
                 decoration: BoxDecoration(
                   color: bronzeLight,
-                  borderRadius:
-                      BorderRadius.circular(14),
+                  borderRadius: BorderRadius.circular(14),
                 ),
                 alignment: Alignment.center,
                 child: Text(
@@ -1849,22 +4187,17 @@ class _CustomersScreenState extends State<CustomersScreen> {
                   ),
                 ),
               ),
-
               const SizedBox(width: 11),
-
               Expanded(
                 child: Column(
-                  crossAxisAlignment:
-                      CrossAxisAlignment.start,
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
                       name,
                       maxLines: 1,
-                      overflow:
-                          TextOverflow.ellipsis,
+                      overflow: TextOverflow.ellipsis,
                       style: TextStyle(
-                        fontSize:
-                            width < 400 ? 16 : 18,
+                        fontSize: width < 400 ? 16 : 18,
                         fontWeight: FontWeight.bold,
                         color: darkBrown,
                       ),
@@ -1875,36 +4208,23 @@ class _CustomersScreenState extends State<CustomersScreen> {
                           ? 'No contact'
                           : _s(d['contactNumber']),
                       maxLines: 1,
-                      overflow:
-                          TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        color: mediumBrown,
-                        fontSize: 13,
-                      ),
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(color: mediumBrown, fontSize: 13),
                     ),
                     const SizedBox(height: 3),
                     Text(
                       'Bill: ${_s(d['billNumber']).isEmpty ? bill.id : d['billNumber']}',
                       maxLines: 1,
-                      overflow:
-                          TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        fontSize: 11,
-                        color: mutedText,
-                      ),
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(fontSize: 11, color: mutedText),
                     ),
                   ],
                 ),
               ),
-
               const SizedBox(width: 5),
-
               PopupMenuButton<String>(
                 padding: EdgeInsets.zero,
-                icon: const Icon(
-                  Icons.more_vert,
-                  color: mediumBrown,
-                ),
+                icon: const Icon(Icons.more_vert, color: mediumBrown),
                 onSelected: (v) {
                   if (v == 'edit') {
                     _edit(bill);
@@ -1917,10 +4237,7 @@ class _CustomersScreenState extends State<CustomersScreen> {
                     value: 'edit',
                     child: Row(
                       children: [
-                        Icon(
-                          Icons.edit_outlined,
-                          size: 19,
-                        ),
+                        Icon(Icons.edit_outlined, size: 19),
                         SizedBox(width: 8),
                         Text('Edit'),
                       ],
@@ -1930,11 +4247,7 @@ class _CustomersScreenState extends State<CustomersScreen> {
                     value: 'delete',
                     child: Row(
                       children: [
-                        Icon(
-                          Icons.delete_outline,
-                          size: 19,
-                          color: Colors.red,
-                        ),
+                        Icon(Icons.delete_outline, size: 19, color: Colors.red),
                         SizedBox(width: 8),
                         Text('Delete'),
                       ],
@@ -1947,56 +4260,46 @@ class _CustomersScreenState extends State<CustomersScreen> {
 
           const SizedBox(height: 12),
 
-          // ----------------------------------------------------
+          // ========================================================
           // STATUS
-          // ----------------------------------------------------
-
+          // ========================================================
           Wrap(
             spacing: 7,
             runSpacing: 7,
             children: [
+              _badge(payment.toUpperCase(), _paymentColor(payment)),
               _badge(
-                payment.toUpperCase(),
-                _paymentColor(payment),
-              ),
-              _badge(
-                rental == 'returned'
-                    ? 'RETURNED'
-                    : 'RENTED',
+                rental == 'returned' ? 'RETURNED' : 'RENTED',
                 rental == 'returned'
                     ? Colors.green.shade700
                     : Colors.orange.shade700,
               ),
+              if (finalBill) _badge('FINAL', Colors.green.shade700),
             ],
           ),
 
           const SizedBox(height: 14),
 
-          // ----------------------------------------------------
+          // ========================================================
           // ITEMS
-          // ----------------------------------------------------
-
+          // ========================================================
           Container(
             width: double.infinity,
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
               color: background,
               borderRadius: BorderRadius.circular(12),
-              border: Border.all(
-                color: border,
-              ),
+              border: Border.all(color: border),
             ),
             child: Row(
-              crossAxisAlignment:
-                  CrossAxisAlignment.start,
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Container(
                   width: 34,
                   height: 34,
                   decoration: BoxDecoration(
                     color: bronzeLight,
-                    borderRadius:
-                        BorderRadius.circular(9),
+                    borderRadius: BorderRadius.circular(9),
                   ),
                   child: const Icon(
                     Icons.inventory_2_outlined,
@@ -2007,16 +4310,14 @@ class _CustomersScreenState extends State<CustomersScreen> {
                 const SizedBox(width: 9),
                 Expanded(
                   child: Column(
-                    crossAxisAlignment:
-                        CrossAxisAlignment.start,
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       const Text(
                         'Rental Items',
                         style: TextStyle(
                           fontSize: 11,
                           color: mutedText,
-                          fontWeight:
-                              FontWeight.w600,
+                          fontWeight: FontWeight.w600,
                         ),
                       ),
                       const SizedBox(height: 3),
@@ -2037,14 +4338,12 @@ class _CustomersScreenState extends State<CustomersScreen> {
 
           const SizedBox(height: 12),
 
-          // ----------------------------------------------------
+          // ========================================================
           // AMOUNTS
-          // ----------------------------------------------------
-
+          // ========================================================
           LayoutBuilder(
             builder: (context, c) {
-              final amountWidth =
-                  (c.maxWidth - 14) / 3;
+              final amountWidth = (c.maxWidth - 14) / 3;
 
               if (amountWidth < 100) {
                 return Wrap(
@@ -2084,11 +4383,7 @@ class _CustomersScreenState extends State<CustomersScreen> {
               return Row(
                 children: [
                   Expanded(
-                    child: _smallAmount(
-                      'Total',
-                      d['totalAmount'],
-                      bronzeDark,
-                    ),
+                    child: _smallAmount('Total', d['totalAmount'], bronzeDark),
                   ),
                   const SizedBox(width: 7),
                   Expanded(
@@ -2115,10 +4410,9 @@ class _CustomersScreenState extends State<CustomersScreen> {
 
           const SizedBox(height: 12),
 
-          // ----------------------------------------------------
+          // ========================================================
           // MAIN ACTIONS
-          // ----------------------------------------------------
-
+          // ========================================================
           LayoutBuilder(
             builder: (context, c) {
               if (c.maxWidth < 430) {
@@ -2128,22 +4422,12 @@ class _CustomersScreenState extends State<CustomersScreen> {
                       width: double.infinity,
                       child: OutlinedButton.icon(
                         onPressed: () => _billView(d),
-                        icon: const Icon(
-                          Icons.receipt_long_outlined,
-                          size: 19,
-                        ),
-                        label:
-                            const Text('View Bill'),
-                        style:
-                            OutlinedButton.styleFrom(
+                        icon: const Icon(Icons.receipt_long_outlined, size: 19),
+                        label: const Text('View Bill'),
+                        style: OutlinedButton.styleFrom(
                           foregroundColor: bronzeDark,
-                          side: const BorderSide(
-                            color: bronzeLight,
-                          ),
-                          padding:
-                              const EdgeInsets.symmetric(
-                            vertical: 12,
-                          ),
+                          side: const BorderSide(color: bronzeLight),
+                          padding: const EdgeInsets.symmetric(vertical: 12),
                         ),
                       ),
                     ),
@@ -2153,32 +4437,20 @@ class _CustomersScreenState extends State<CustomersScreen> {
                       child: payment == 'paid'
                           ? OutlinedButton.icon(
                               onPressed: null,
-                              icon: const Icon(
-                                Icons.lock_outline,
-                                size: 18,
-                              ),
-                              label:
-                                  const Text('Paid'),
+                              icon: const Icon(Icons.lock_outline, size: 18),
+                              label: const Text('Paid'),
                             )
                           : ElevatedButton.icon(
-                              onPressed: () =>
-                                  _markPaid(bill),
+                              onPressed: () => _markPaid(bill),
                               icon: const Icon(
-                                Icons
-                                    .check_circle_outline,
+                                Icons.check_circle_outline,
                                 size: 18,
                               ),
-                              label:
-                                  const Text('Mark Paid'),
-                              style:
-                                  ElevatedButton.styleFrom(
-                                backgroundColor:
-                                    bronze,
-                                foregroundColor:
-                                    Colors.white,
-                                padding:
-                                    const EdgeInsets
-                                        .symmetric(
+                              label: const Text('Mark Paid'),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: bronze,
+                                foregroundColor: Colors.white,
+                                padding: const EdgeInsets.symmetric(
                                   vertical: 12,
                                 ),
                               ),
@@ -2193,21 +4465,12 @@ class _CustomersScreenState extends State<CustomersScreen> {
                   Expanded(
                     child: OutlinedButton.icon(
                       onPressed: () => _billView(d),
-                      icon: const Icon(
-                        Icons.receipt_long_outlined,
-                        size: 19,
-                      ),
+                      icon: const Icon(Icons.receipt_long_outlined, size: 19),
                       label: const Text('View Bill'),
-                      style:
-                          OutlinedButton.styleFrom(
+                      style: OutlinedButton.styleFrom(
                         foregroundColor: bronzeDark,
-                        side: const BorderSide(
-                          color: bronzeLight,
-                        ),
-                        padding:
-                            const EdgeInsets.symmetric(
-                          vertical: 12,
-                        ),
+                        side: const BorderSide(color: bronzeLight),
+                        padding: const EdgeInsets.symmetric(vertical: 12),
                       ),
                     ),
                   ),
@@ -2216,34 +4479,20 @@ class _CustomersScreenState extends State<CustomersScreen> {
                     child: payment == 'paid'
                         ? OutlinedButton.icon(
                             onPressed: null,
-                            icon: const Icon(
-                              Icons.lock_outline,
-                              size: 18,
-                            ),
-                            label:
-                                const Text('Paid'),
+                            icon: const Icon(Icons.lock_outline, size: 18),
+                            label: const Text('Paid'),
                           )
                         : ElevatedButton.icon(
-                            onPressed: () =>
-                                _markPaid(bill),
+                            onPressed: () => _markPaid(bill),
                             icon: const Icon(
-                              Icons
-                                  .check_circle_outline,
+                              Icons.check_circle_outline,
                               size: 18,
                             ),
-                            label:
-                                const Text('Mark Paid'),
-                            style:
-                                ElevatedButton.styleFrom(
-                              backgroundColor:
-                                  bronze,
-                              foregroundColor:
-                                  Colors.white,
-                              padding:
-                                  const EdgeInsets
-                                      .symmetric(
-                                vertical: 12,
-                              ),
+                            label: const Text('Mark Paid'),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: bronze,
+                              foregroundColor: Colors.white,
+                              padding: const EdgeInsets.symmetric(vertical: 12),
                             ),
                           ),
                   ),
@@ -2254,32 +4503,20 @@ class _CustomersScreenState extends State<CustomersScreen> {
 
           const SizedBox(height: 8),
 
-          // ----------------------------------------------------
-          // RETURN BUTTON
-          // ----------------------------------------------------
-
+          // ========================================================
+          // RETURN BUTTON / FINAL STATUS
+          // ========================================================
           if (rental != 'returned')
             SizedBox(
               width: double.infinity,
               child: OutlinedButton.icon(
-                onPressed: () =>
-                    _returnItems(bill),
-                icon: const Icon(
-                  Icons.assignment_return_outlined,
-                  size: 19,
-                ),
-                label: const Text(
-                  'Mark Rental Items Returned',
-                ),
+                onPressed: () => _returnItems(bill),
+                icon: const Icon(Icons.assignment_return_outlined, size: 19),
+                label: const Text('Mark Rental Items Returned'),
                 style: OutlinedButton.styleFrom(
                   foregroundColor: bronzeDark,
-                  side: const BorderSide(
-                    color: bronzeLight,
-                  ),
-                  padding:
-                      const EdgeInsets.symmetric(
-                    vertical: 12,
-                  ),
+                  side: const BorderSide(color: bronzeLight),
+                  padding: const EdgeInsets.symmetric(vertical: 12),
                 ),
               ),
             )
@@ -2288,22 +4525,25 @@ class _CustomersScreenState extends State<CustomersScreen> {
               width: double.infinity,
               padding: const EdgeInsets.all(11),
               decoration: BoxDecoration(
-                color:
-                    Colors.green.withOpacity(.06),
-                borderRadius:
-                    BorderRadius.circular(10),
+                color: finalBill
+                    ? Colors.green.withOpacity(.09)
+                    : Colors.orange.withOpacity(.06),
+                borderRadius: BorderRadius.circular(10),
                 border: Border.all(
-                  color:
-                      Colors.green.withOpacity(.18),
+                  color: finalBill
+                      ? Colors.green.withOpacity(.20)
+                      : Colors.orange.withOpacity(.18),
                 ),
               ),
               child: Text(
-                payment == 'paid'
-                    ? '✓ Rental returned & payment cleared'
+                finalBill
+                    ? '✓ Rental returned • payment cleared • FINAL BILL'
                     : '✓ Rental returned • payment still pending',
                 textAlign: TextAlign.center,
                 style: TextStyle(
-                  color: Colors.green.shade700,
+                  color: finalBill
+                      ? Colors.green.shade700
+                      : Colors.orange.shade800,
                   fontWeight: FontWeight.bold,
                   fontSize: 12,
                 ),
@@ -2312,13 +4552,11 @@ class _CustomersScreenState extends State<CustomersScreen> {
 
           const SizedBox(height: 9),
 
-          // ----------------------------------------------------
+          // ========================================================
           // RENTAL DATES
-          // ----------------------------------------------------
-
+          // ========================================================
           Row(
-            crossAxisAlignment:
-                CrossAxisAlignment.start,
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               const Icon(
                 Icons.calendar_today_outlined,
@@ -2329,37 +4567,59 @@ class _CustomersScreenState extends State<CustomersScreen> {
               Expanded(
                 child: Text(
                   'Rental: ${_date(d['dateFrom'])} → ${_date(d['dateTill'])}',
-                  style: const TextStyle(
-                    color: mutedText,
-                    fontSize: 11,
-                  ),
+                  style: const TextStyle(color: mutedText, fontSize: 11),
                 ),
               ),
             ],
           ),
+
+          // ========================================================
+          // RETURN DATE
+          // ========================================================
+          if (rental == 'returned') ...[
+            const SizedBox(height: 5),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Icon(
+                  Icons.assignment_turned_in_outlined,
+                  size: 14,
+                  color: Colors.green.shade700,
+                ),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: Text(
+                    'Returned: ${_returnDate(d)}',
+                    style: TextStyle(
+                      color: Colors.green.shade700,
+                      fontSize: 11,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ],
         ],
       ),
     );
   }
 
-  Widget _smallAmount(
-    String title,
-    dynamic value,
-    Color color,
-  ) {
+  // ============================================================
+  // SMALL AMOUNT
+  // ============================================================
+
+  Widget _smallAmount(String title, dynamic value, Color color) {
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(10),
       decoration: BoxDecoration(
         color: color.withOpacity(.055),
         borderRadius: BorderRadius.circular(10),
-        border: Border.all(
-          color: color.withOpacity(.10),
-        ),
+        border: Border.all(color: color.withOpacity(.10)),
       ),
       child: Column(
-        crossAxisAlignment:
-            CrossAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
             title,
@@ -2396,6 +4656,9 @@ class _CustomersScreenState extends State<CustomersScreen> {
     return Scaffold(
       backgroundColor: background,
 
+      // ==========================================================
+      // APP BAR
+      // ==========================================================
       appBar: AppBar(
         elevation: 0,
         backgroundColor: surface,
@@ -2413,18 +4676,14 @@ class _CustomersScreenState extends State<CustomersScreen> {
         ),
       ),
 
-      drawer: const AdminDrawer(
-        selectedIndex: 2,
-      ),
+      drawer: const AdminDrawer(selectedIndex: 2),
 
-      body: StreamBuilder<
-          QuerySnapshot<Map<String, dynamic>>>(
-        stream: _db
-            .collection('bills')
-            .orderBy(
-              'createdAt',
-              descending: true,
-            )
+      // ==========================================================
+      // USER-SPECIFIC BILL STREAM
+      // ==========================================================
+      body: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+        stream: _billsCollection
+            .orderBy('createdAt', descending: true)
             .snapshots(),
 
         builder: (context, snap) {
@@ -2436,96 +4695,92 @@ class _CustomersScreenState extends State<CustomersScreen> {
                   padding: const EdgeInsets.all(20),
                   decoration: BoxDecoration(
                     color: surface,
-                    borderRadius:
-                        BorderRadius.circular(16),
-                    border: Border.all(
-                      color: border,
-                    ),
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(color: border),
                   ),
                   child: Text(
-                    'Could not load customers.\n\n${snap.error}',
+                    'Could not load customers.\n\n'
+                    '${snap.error}',
                     textAlign: TextAlign.center,
-                    style: const TextStyle(
-                      color: mediumBrown,
-                    ),
+                    style: const TextStyle(color: mediumBrown),
                   ),
                 ),
               ),
             );
           }
 
-          if (snap.connectionState ==
-              ConnectionState.waiting) {
+          if (snap.connectionState == ConnectionState.waiting) {
             return const Center(
-              child: CircularProgressIndicator(
-                color: bronze,
-              ),
+              child: CircularProgressIndicator(color: bronze),
             );
           }
 
           final all = snap.data?.docs ?? [];
 
-          final searchText =
-              _search.text.trim().toLowerCase();
+          // ========================================================
+          // SEARCH
+          // ========================================================
+
+          final searchText = _search.text.trim().toLowerCase();
 
           final filtered = all.where((b) {
-            final name =
-                _s(b.data()['customerName'])
-                    .toLowerCase();
+            final data = b.data();
 
-            return name.contains(searchText);
+            final name = _s(data['customerName']).toLowerCase();
+
+            final contact = _s(data['contactNumber']).toLowerCase();
+
+            final cnic = _s(data['cnic']).toLowerCase();
+            
+
+            final billNumber = _s(data['billNumber']).toLowerCase();
+
+            return name.contains(searchText) ||
+                contact.contains(searchText) ||
+                cnic.contains(searchText) ||
+                billNumber.contains(searchText);
           }).toList();
 
-          final current = filtered
-              .where((b) => !_cleared(b.data()))
-              .toList();
+          // ========================================================
+          // CURRENT
+          // ========================================================
 
-          final cleared = filtered
-              .where((b) => _cleared(b.data()))
-              .toList();
+          final current = filtered.where((b) => !_cleared(b.data())).toList();
 
-          final shown =
-              _tab == 0 ? current : cleared;
+          // ========================================================
+          // CLEARED
+          // ========================================================
+
+          final cleared = filtered.where((b) => _cleared(b.data())).toList();
+
+          final shown = _tab == 0 ? current : cleared;
 
           return Center(
             child: ConstrainedBox(
-              constraints:
-                  const BoxConstraints(
-                maxWidth: 1150,
-              ),
+              constraints: const BoxConstraints(maxWidth: 1150),
               child: ListView(
                 keyboardDismissBehavior:
-                    ScrollViewKeyboardDismissBehavior
-                        .onDrag,
+                    ScrollViewKeyboardDismissBehavior.onDrag,
                 padding: EdgeInsets.symmetric(
-                  horizontal:
-                      screenWidth < 400 ? 12 : 20,
-                  vertical:
-                      screenWidth < 400 ? 14 : 20,
+                  horizontal: screenWidth < 400 ? 12 : 20,
+                  vertical: screenWidth < 400 ? 14 : 20,
                 ),
                 children: [
                   // ==================================================
                   // HEADER
                   // ==================================================
-
                   Row(
-                    crossAxisAlignment:
-                        CrossAxisAlignment.start,
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Expanded(
                         child: Column(
-                          crossAxisAlignment:
-                              CrossAxisAlignment.start,
+                          crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
                               'Customers',
                               style: TextStyle(
-                                fontSize:
-                                    screenWidth < 400
-                                        ? 23
-                                        : 28,
-                                fontWeight:
-                                    FontWeight.bold,
+                                fontSize: screenWidth < 400 ? 23 : 28,
+                                fontWeight: FontWeight.bold,
                                 color: darkBrown,
                               ),
                             ),
@@ -2533,12 +4788,8 @@ class _CustomersScreenState extends State<CustomersScreen> {
                             const Text(
                               'Manage rentals, payments and customer records.',
                               maxLines: 2,
-                              overflow:
-                                  TextOverflow.ellipsis,
-                              style: TextStyle(
-                                color: mutedText,
-                                fontSize: 12,
-                              ),
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(color: mutedText, fontSize: 12),
                             ),
                           ],
                         ),
@@ -2551,7 +4802,6 @@ class _CustomersScreenState extends State<CustomersScreen> {
                   // ==================================================
                   // SUMMARY
                   // ==================================================
-
                   LayoutBuilder(
                     builder: (context, c) {
                       final cards = [
@@ -2589,17 +4839,11 @@ class _CustomersScreenState extends State<CustomersScreen> {
 
                       return Row(
                         children: [
-                          Expanded(
-                            child: cards[0],
-                          ),
+                          Expanded(child: cards[0]),
                           const SizedBox(width: 10),
-                          Expanded(
-                            child: cards[1],
-                          ),
+                          Expanded(child: cards[1]),
                           const SizedBox(width: 10),
-                          Expanded(
-                            child: cards[2],
-                          ),
+                          Expanded(child: cards[2]),
                         ],
                       );
                     },
@@ -2610,50 +4854,35 @@ class _CustomersScreenState extends State<CustomersScreen> {
                   // ==================================================
                   // SEARCH
                   // ==================================================
-
                   Container(
                     decoration: BoxDecoration(
                       color: surface,
-                      borderRadius:
-                          BorderRadius.circular(14),
-                      border: Border.all(
-                        color: border,
-                      ),
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(color: border),
                     ),
                     child: TextField(
                       controller: _search,
                       onChanged: (_) {
                         setState(() {});
                       },
-                      style: const TextStyle(
-                        color: darkBrown,
-                      ),
+                      style: const TextStyle(color: darkBrown),
                       decoration: InputDecoration(
                         hintText:
-                            'Search customer by name...',
-                        hintStyle: const TextStyle(
-                          color: mutedText,
-                        ),
-                        prefixIcon: const Icon(
-                          Icons.search,
-                          color: bronze,
-                        ),
-                        suffixIcon:
-                            _search.text.isEmpty
-                                ? null
-                                : IconButton(
-                                    onPressed: () {
-                                      _search.clear();
-                                      setState(() {});
-                                    },
-                                    icon: const Icon(
-                                      Icons.clear,
-                                      color: mutedText,
-                                    ),
-                                  ),
+                            'Search customer by name, contact, CNIC or bill...',
+                        hintStyle: const TextStyle(color: mutedText),
+                        prefixIcon: const Icon(Icons.search, color: bronze),
+                        suffixIcon: _search.text.isEmpty
+                            ? null
+                            : IconButton(
+                                onPressed: () {
+                                  _search.clear();
+
+                                  setState(() {});
+                                },
+                                icon: const Icon(Icons.clear, color: mutedText),
+                              ),
                         border: InputBorder.none,
-                        contentPadding:
-                            const EdgeInsets.symmetric(
+                        contentPadding: const EdgeInsets.symmetric(
                           horizontal: 15,
                           vertical: 15,
                         ),
@@ -2666,7 +4895,6 @@ class _CustomersScreenState extends State<CustomersScreen> {
                   // ==================================================
                   // TABS
                   // ==================================================
-
                   LayoutBuilder(
                     builder: (context, c) {
                       final a = _tabButton(
@@ -2686,26 +4914,14 @@ class _CustomersScreenState extends State<CustomersScreen> {
                       if (c.maxWidth < 600) {
                         return Column(
                           children: [
-                            SizedBox(
-                              width: double.infinity,
-                              child: a,
-                            ),
+                            SizedBox(width: double.infinity, child: a),
                             const SizedBox(height: 8),
-                            SizedBox(
-                              width: double.infinity,
-                              child: b,
-                            ),
+                            SizedBox(width: double.infinity, child: b),
                           ],
                         );
                       }
 
-                      return Row(
-                        children: [
-                          a,
-                          const SizedBox(width: 10),
-                          b,
-                        ],
-                      );
+                      return Row(children: [a, const SizedBox(width: 10), b]);
                     },
                   ),
 
@@ -2714,7 +4930,6 @@ class _CustomersScreenState extends State<CustomersScreen> {
                   // ==================================================
                   // SECTION TITLE
                   // ==================================================
-
                   Row(
                     children: [
                       Container(
@@ -2722,8 +4937,7 @@ class _CustomersScreenState extends State<CustomersScreen> {
                         height: 22,
                         decoration: BoxDecoration(
                           color: bronze,
-                          borderRadius:
-                              BorderRadius.circular(5),
+                          borderRadius: BorderRadius.circular(5),
                         ),
                       ),
                       const SizedBox(width: 9),
@@ -2733,12 +4947,8 @@ class _CustomersScreenState extends State<CustomersScreen> {
                               ? 'Current / Pending Clearance'
                               : 'Cleared / Returned',
                           style: TextStyle(
-                            fontSize:
-                                screenWidth < 400
-                                    ? 18
-                                    : 20,
-                            fontWeight:
-                                FontWeight.bold,
+                            fontSize: screenWidth < 400 ? 18 : 20,
+                            fontWeight: FontWeight.bold,
                             color: darkBrown,
                           ),
                         ),
@@ -2758,22 +4968,14 @@ class _CustomersScreenState extends State<CustomersScreen> {
                   // ==================================================
                   // EMPTY STATE
                   // ==================================================
-
                   if (shown.isEmpty)
                     Container(
                       width: double.infinity,
-                      padding: EdgeInsets.all(
-                        screenWidth < 400
-                            ? 32
-                            : 45,
-                      ),
+                      padding: EdgeInsets.all(screenWidth < 400 ? 32 : 45),
                       decoration: BoxDecoration(
                         color: surface,
-                        borderRadius:
-                            BorderRadius.circular(17),
-                        border: Border.all(
-                          color: border,
-                        ),
+                        borderRadius: BorderRadius.circular(17),
+                        border: Border.all(color: border),
                       ),
                       child: Column(
                         children: [
@@ -2786,10 +4988,8 @@ class _CustomersScreenState extends State<CustomersScreen> {
                             ),
                             child: Icon(
                               _tab == 0
-                                  ? Icons
-                                      .assignment_turned_in_outlined
-                                  : Icons
-                                      .verified_outlined,
+                                  ? Icons.assignment_turned_in_outlined
+                                  : Icons.verified_outlined,
                               size: 31,
                               color: bronzeDark,
                             ),
@@ -2802,8 +5002,7 @@ class _CustomersScreenState extends State<CustomersScreen> {
                             textAlign: TextAlign.center,
                             style: const TextStyle(
                               fontSize: 16,
-                              fontWeight:
-                                  FontWeight.bold,
+                              fontWeight: FontWeight.bold,
                               color: darkBrown,
                             ),
                           ),
@@ -2811,10 +5010,7 @@ class _CustomersScreenState extends State<CustomersScreen> {
                           const Text(
                             'Customer records will appear here automatically.',
                             textAlign: TextAlign.center,
-                            style: TextStyle(
-                              color: mutedText,
-                              fontSize: 12,
-                            ),
+                            style: TextStyle(color: mutedText, fontSize: 12),
                           ),
                         ],
                       ),
